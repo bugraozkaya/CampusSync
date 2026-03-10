@@ -55,4 +55,10 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    // Compose Navigation (Ekranlar arası yönlendirme için)
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+
+    // Retrofit & Gson (Django API ile JSON haberleşmesi için)
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 }
