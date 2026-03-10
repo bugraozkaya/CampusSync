@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'scheduler',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
@@ -123,3 +124,11 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'scheduler.User'
+
+# Django REST Framework Ayarları
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    # İstersen ileride buraya sadece giriş yapmış kullanıcılar API'yi görsün diye kısıtlamalar da ekleyebiliriz.
+}
