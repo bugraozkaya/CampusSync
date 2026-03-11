@@ -3,7 +3,6 @@ package com.bugra.campussync
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -12,16 +11,19 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.bugra.campussync.network.RetrofitClient
+import com.bugra.campussync.network.ScheduleItem // Model importu
 import com.bugra.campussync.screens.*
 import com.bugra.campussync.ui.theme.CampusSyncTheme
+import com.bugra.campussync.utils.TokenManager
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,13 +46,18 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val tokenManager = remember { TokenManager(context) }
 
-    // Proje dokümanında belirtilen 4 ana menü [cite: 3]
+    // Hata buradaydı: scheduleList artık tanımlı ve state olarak tutuluyor
+    var scheduleList by remember { mutableStateOf<List<ScheduleItem>>(emptyList()) }
+
+    // Proje dokümanındaki 4 ana menü
     val items = listOf("home", "calendar", "data", "settings")
 
     Scaffold(
         bottomBar = {
-            // Sadece ana uygulama ekranlarındaysak (Onboarding/Auth hariç) BottomBar gösterilir
             if (currentRoute in items) {
                 NavigationBar {
                     items.forEach { screen ->
@@ -83,20 +90,27 @@ fun AppNavigation() {
             startDestination = "onboarding",
             modifier = Modifier.padding(innerPadding)
         ) {
-            // 0. Giriş Akışı
             composable("onboarding") {
                 OnboardingScreen(onNavigateToAuth = { navController.navigate("auth") })
             }
 
             composable("auth") {
                 AuthScreen(onLoginSuccess = {
-                    navController.navigate("home") {
-                        popUpTo("auth") { inclusive = true }
+                    // Giriş başarılı olunca dersleri çekip ana ekrana gidelim
+                    scope.launch {
+                        val token = tokenManager.getToken()
+                        if (token != null) {
+                            try {
+                                scheduleList = RetrofitClient.apiService.getSchedules("Bearer $token")
+                            } catch (e: Exception) { /* Hata yönetimi */ }
+                        }
+                        navController.navigate("home") {
+                            popUpTo("auth") { inclusive = true }
+                        }
                     }
                 })
             }
 
-            // 1. Navigation -> Home [cite: 4, 8]
             composable("home") {
                 HomeScreen(onLogoutClick = {
                     navController.navigate("auth") {
@@ -105,22 +119,15 @@ fun AppNavigation() {
                 })
             }
 
-            // 2. Navigation -> Calendar [cite: 5, 10]
             composable("calendar") {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Takvim Ekranı (Ders Programı Detayları) [cite: 10, 36]")
-                }
+                // Yer tutucu Box sildik, sadece asıl ekranı çağırdık
+                CalendarScreen(schedules = scheduleList)
             }
 
-            // 3. Navigation -> Data [cite: 6, 17]
             composable("data") {
                 DataScreen()
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Veri Aktarma (Excel/TXT Import) [cite: 19]")
-                }
             }
 
-            // 4. Navigation -> Settings [cite: 7, 44]
             composable("settings") {
                 SettingsScreen()
             }
