@@ -23,6 +23,9 @@ class CourseSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ScheduleSerializer(serializers.ModelSerializer):
+    # YENİ EKLENEN 2 SATIR: İlişkili tablolardaki isimleri çekiyoruz
+    course_name = serializers.StringRelatedField(source='course', read_only=True)
+    classroom_name = serializers.StringRelatedField(source='classroom', read_only=True)
     class Meta:
         model = Schedule
         fields = '__all__'
