@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.bugra.campussync.screens.AuthScreen
+import com.bugra.campussync.screens.HomeScreen
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
@@ -34,29 +35,38 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AppNavigation() {
-    // Navigasyon kontrolcümüzü oluşturuyoruz
     val navController = rememberNavController()
 
-    // Ekranların rotalarını ve sırasını belirliyoruz
-    NavHost(navController = navController, startDestination = "onboarding") {
+    // Uygulama açıldığında Token var mı diye kontrol ediyoruz (YENİ EKLENDİ)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val tokenManager = com.bugra.campussync.utils.TokenManager(context)
+    val startScreen = if (tokenManager.getToken() != null) "home" else "onboarding"
 
-        // 1. Ekran: Karşılama (Onboarding)
+    // startDestination'ı dinamik yaptık
+    NavHost(navController = navController, startDestination = startScreen) {
+
         composable("onboarding") {
             OnboardingScreen(
-                onNavigateToAuth = {
-                    // Butona basılınca 'auth' rotasına git
-                    navController.navigate("auth")
+                onNavigateToAuth = { navController.navigate("auth") }
+            )
+        }
+
+        composable("auth") {
+            AuthScreen(
+                onLoginSuccess = {
+                    navController.navigate("home") {
+                        popUpTo("auth") { inclusive = true }
+                    }
                 }
             )
         }
 
-        // 2. Ekran: Giriş ve Kayıt Seçimi
-        composable("auth") {
-            AuthScreen(
-                onLoginSuccess = {
-                    // İleride buraya ana sayfaya (Takvim vs) geçiş kodunu yazacağız
-                    // navController.navigate("home")
-                    println("Başarıyla giriş yapıldı!")
+        composable("home") {
+            HomeScreen(
+                onLogoutClick = {
+                    navController.navigate("auth") {
+                        popUpTo("home") { inclusive = true }
+                    }
                 }
             )
         }

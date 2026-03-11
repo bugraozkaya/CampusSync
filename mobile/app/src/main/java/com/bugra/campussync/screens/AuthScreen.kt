@@ -1,4 +1,4 @@
-package com.bugra.campussync.screens // Kendi paket adını kontrol et
+package com.bugra.campussync.screens
 
 import android.util.Log
 import androidx.compose.foundation.layout.*
@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -15,10 +16,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bugra.campussync.network.LoginRequest
 import com.bugra.campussync.network.RetrofitClient
+import com.bugra.campussync.utils.TokenManager
 import kotlinx.coroutines.launch
 
 @Composable
 fun AuthScreen(onLoginSuccess: () -> Unit) {
+    // Context ve TokenManager'ı başlatıyoruz (YENİ EKLENDİ)
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+
     var isLoginMode by remember { mutableStateOf(true) }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -87,8 +93,11 @@ fun AuthScreen(onLoginSuccess: () -> Unit) {
                             // İsteği atıp cevabı bekliyoruz
                             val response = RetrofitClient.apiService.login(request)
 
-                            // Başarılı olursa Token loglara yazdırılır ve ana sayfaya geçilir
-                            Log.d("AUTH_SUCCESS", "Başarılı! Access Token: ${response.access}")
+                            // 1. Gelen Token'ı hafızaya kaydet! (YENİ EKLENDİ)
+                            tokenManager.saveToken(response.access)
+                            Log.d("AUTH_SUCCESS", "Başarılı! Access Token kaydedildi.")
+
+                            // 2. Ana sayfaya geçiş yap!
                             onLoginSuccess()
 
                         } catch (e: Exception) {
