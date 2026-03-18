@@ -16,3 +16,10 @@ data class ScheduleItem(
 
     val classroom_name: String? // YENİ: Django'dan gelecek sınıfın gerçek adı
 )
+
+data class ImportedCourse(
+    val department: String,
+    val code: String,
+    val name: String,
+    val lecturer: String
+)

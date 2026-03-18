@@ -1,12 +1,6 @@
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
@@ -20,4 +14,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "CampusSync"
+
+// Include the app module and specify its physical location
 include(":app")
+project(":app").projectDir = file("mobile/app")

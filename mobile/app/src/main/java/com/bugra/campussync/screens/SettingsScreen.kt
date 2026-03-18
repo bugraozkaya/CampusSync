@@ -1,31 +1,23 @@
 package com.bugra.campussync.screens
 
-import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bugra.campussync.utils.TokenManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
     val context = LocalContext.current
-    val sharedPref = remember { context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE) }
+    val tokenManager = remember { TokenManager(context) }
 
-    // Dokümandaki alanlar [cite: 45, 56]
-    var name by remember { mutableStateOf(sharedPref.getString("user_name", "") ?: "") }
-    var selectedDept by remember { mutableStateOf(sharedPref.getString("user_dept", "Bölüm Seçin") ?: "Bölüm Seçin") }
-    var selectedPos by remember { mutableStateOf(sharedPref.getString("user_pos", "Pozisyon Seçin") ?: "Pozisyon Seçin") }
-
-    // Menü açılıp kapanma durumları
-    var deptExpanded by remember { mutableStateOf(false) }
-    var posExpanded by remember { mutableStateOf(false) }
-
-    // Dokümandaki listeler [cite: 46-51, 52-54]
+    // Dokümandaki bölümler
     val departments = listOf(
         "Computer Engineering",
         "Electrical and Electronics Engineering",
@@ -33,35 +25,53 @@ fun SettingsScreen() {
         "Aeronautical Engineering",
         "Agricultural Department"
     )
+    
+    // Dokümandaki pozisyonlar
     val positions = listOf("Admin (IT)", "Lecturer")
 
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-        Text("Profil Ayarları", fontSize = 24.sp, modifier = Modifier.padding(bottom = 24.dp))
+    // State tanımlamaları
+    var nameSurname by remember { mutableStateOf(tokenManager.getNameSurname() ?: "") }
+    var selectedDept by remember { mutableStateOf(tokenManager.getDepartment() ?: "") }
+    var selectedPos by remember { mutableStateOf(tokenManager.getPosition() ?: "") }
+
+    var deptExpanded by remember { mutableStateOf(false) }
+    var posExpanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Text("Ayarlar ve Profil", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.height(32.dp))
 
         // Ad Soyad Girişi
         OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
+            value = nameSurname,
+            onValueChange = { nameSurname = it },
             label = { Text("Ad Soyad") },
             modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Departman Seçimi (Açılır Liste) [cite: 45, 46]
+        // Bölüm Seçimi (Dropdown)
         ExposedDropdownMenuBox(
             expanded = deptExpanded,
             onExpandedChange = { deptExpanded = !deptExpanded }
         ) {
             OutlinedTextField(
-                value = selectedDept,
+                value = selectedDept.ifEmpty { "Bölüm Seçin" },
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Bölüm Seçiniz") },
+                label = { Text("Departman") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = deptExpanded) },
                 modifier = Modifier.menuAnchor().fillMaxWidth()
             )
-            ExposedDropdownMenu(expanded = deptExpanded, onDismissRequest = { deptExpanded = false }) {
+            ExposedDropdownMenu(
+                expanded = deptExpanded,
+                onDismissRequest = { deptExpanded = false }
+            ) {
                 departments.forEach { dept ->
                     DropdownMenuItem(
                         text = { Text(dept) },
@@ -76,20 +86,23 @@ fun SettingsScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Pozisyon Seçimi (Açılır Liste) [cite: 52]
+        // Pozisyon Seçimi (Dropdown)
         ExposedDropdownMenuBox(
             expanded = posExpanded,
             onExpandedChange = { posExpanded = !posExpanded }
         ) {
             OutlinedTextField(
-                value = selectedPos,
+                value = selectedPos.ifEmpty { "Pozisyon Seçin" },
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Pozisyon Seçiniz") },
+                label = { Text("Pozisyon") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = posExpanded) },
                 modifier = Modifier.menuAnchor().fillMaxWidth()
             )
-            ExposedDropdownMenu(expanded = posExpanded, onDismissRequest = { posExpanded = false }) {
+            ExposedDropdownMenu(
+                expanded = posExpanded,
+                onDismissRequest = { posExpanded = false }
+            ) {
                 positions.forEach { pos ->
                     DropdownMenuItem(
                         text = { Text(pos) },
@@ -104,23 +117,16 @@ fun SettingsScreen() {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Kaydet Butonu [cite: 57]
         Button(
-            modifier = Modifier.fillMaxWidth().height(50.dp),
             onClick = {
-                if (name.isNotEmpty() && selectedDept != "Bölüm Seçin" && selectedPos != "Pozisyon Seçin") {
-                    sharedPref.edit().apply {
-                        putString("user_name", name)
-                        putString("user_dept", selectedDept)
-                        putString("user_pos", selectedPos)
-                        putBoolean("is_registered", true) // Kayıt tamamlandı bayrağı
-                        apply()
-                    }
-                    Toast.makeText(context, "Profil Kaydedildi!", Toast.LENGTH_SHORT).show()
-                } else {
+                if (nameSurname.isBlank() || selectedDept.isBlank() || selectedPos.isBlank()) {
                     Toast.makeText(context, "Lütfen tüm alanları doldurun!", Toast.LENGTH_SHORT).show()
+                } else {
+                    tokenManager.saveProfileInfo(nameSurname, selectedDept, selectedPos)
+                    Toast.makeText(context, "Profiliniz başarıyla kaydedildi.", Toast.LENGTH_SHORT).show()
                 }
-            }
+            },
+            modifier = Modifier.fillMaxWidth().height(50.dp)
         ) {
             Text("Kaydet")
         }

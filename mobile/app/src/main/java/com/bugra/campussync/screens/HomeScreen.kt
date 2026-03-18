@@ -16,35 +16,37 @@ import androidx.compose.ui.unit.sp
 import com.bugra.campussync.network.RetrofitClient
 import com.bugra.campussync.network.ScheduleItem
 import com.bugra.campussync.utils.TokenManager
-import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(onLogoutClick: () -> Unit) {
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
-    val coroutineScope = rememberCoroutineScope()
 
-    // Ekranda tutacağımız veriler
+    val nameSurname = tokenManager.getNameSurname() ?: ""
+    val department = tokenManager.getDepartment() ?: ""
+    val position = tokenManager.getPosition() ?: ""
+    val isProfileComplete = tokenManager.isProfileComplete()
+
+    // Alert Dialog görünürlük kontrolü
+    var showDialog by remember { mutableStateOf(!isProfileComplete) }
+
     var schedules by remember { mutableStateOf<List<ScheduleItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
 
-    // Ekran İLK AÇILDIĞINDA bu blok otomatik çalışır (API'den verileri çeker)
     LaunchedEffect(Unit) {
         val token = tokenManager.getToken()
         if (token != null) {
             try {
-                // Token'ın başına "Bearer " eklemek standart bir güvenlik protokolüdür
                 val response = RetrofitClient.apiService.getSchedules("Bearer $token")
                 schedules = response
             } catch (e: Exception) {
-                Log.e("API_ERROR", "Dersler çekilemedi: ${e.message}")
-                errorMessage = "Ders programı yüklenemedi. Sunucu bağlantısını kontrol et."
+                Log.e("API_ERROR", "Error fetching schedules: ${e.message}")
+                errorMessage = "Could not load schedule."
             } finally {
                 isLoading = false
             }
         } else {
-            errorMessage = "Oturum hatası, lütfen tekrar giriş yapın."
             isLoading = false
         }
     }
@@ -55,42 +57,62 @@ fun HomeScreen(onLogoutClick: () -> Unit) {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Üst Başlık ve Çıkış Butonu
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Ders Programım",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            TextButton(onClick = {
-                tokenManager.clearToken()
-                onLogoutClick()
-            }) {
-                Text("Çıkış Yap", color = MaterialTheme.colorScheme.error)
+            Column {
+                Text(
+                    text = if (nameSurname.isNotEmpty()) "Welcome $nameSurname" else "Welcome",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (department.isNotEmpty()) {
+                    Text(text = department, fontSize = 14.sp, color = Color.Gray)
+                }
+                if (position.isNotEmpty()) {
+                    Text(text = "Position: $position", fontSize = 12.sp, color = Color.Gray)
+                }
+            }
+            TextButton(onClick = onLogoutClick) {
+                Text("Logout", color = MaterialTheme.colorScheme.error)
             }
         }
 
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // UYARI DÜZELTMESİ: State kontrolü eklendi
+        if (showDialog) {
+            AlertDialog(
+                onDismissRequest = { showDialog = false },
+                title = { Text("Registration Incomplete") },
+                text = { Text("Please go to Settings and complete your department and position selection first.") },
+                confirmButton = {
+                    TextButton(onClick = { showDialog = false }) {
+                        Text("OK")
+                    }
+                }
+            )
+        }
+
+        Text(
+            text = "Your Course Schedule",
+            modifier = Modifier.fillMaxWidth(),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Yükleniyor durumu
         if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.padding(32.dp))
-        }
-        // Hata durumu
-        else if (errorMessage.isNotEmpty()) {
-            Text(text = errorMessage, color = Color.Red, modifier = Modifier.padding(16.dp))
-        }
-        // Veri boşsa
-        else if (schedules.isEmpty()) {
-            Text(text = "Henüz eklenmiş bir ders bulunmuyor.", modifier = Modifier.padding(16.dp))
-        }
-        // Veri başarıyla geldiyse (Kartları listele)
-        else {
+        } else if (errorMessage.isNotEmpty()) {
+            Text(text = errorMessage, color = Color.Red)
+        } else if (schedules.isEmpty()) {
+            Text(text = "No courses assigned yet.", modifier = Modifier.padding(16.dp))
+        } else {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(schedules) { schedule ->
                     ScheduleCard(schedule)
@@ -100,9 +122,6 @@ fun HomeScreen(onLogoutClick: () -> Unit) {
     }
 }
 
-// Tek bir Ders Kartı Tasarımı
-// Tek bir Ders Kartı Tasarımı
-// Tek bir Ders Kartı Tasarımı
 @Composable
 fun ScheduleCard(schedule: ScheduleItem) {
     Card(
@@ -112,7 +131,6 @@ fun ScheduleCard(schedule: ScheduleItem) {
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Artık ID'yi değil, Django'dan gelen gerçek ismi gösteriyoruz!
             Text(
                 text = schedule.course_name,
                 fontSize = 18.sp,
@@ -125,8 +143,7 @@ fun ScheduleCard(schedule: ScheduleItem) {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                // Sınıf boşsa "Belirtilmedi" yazdırıyoruz
-                text = "Sınıf: ${schedule.classroom_name ?: "Belirtilmedi"}",
+                text = "Classroom: ${schedule.classroom_name ?: "Not Assigned"}",
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

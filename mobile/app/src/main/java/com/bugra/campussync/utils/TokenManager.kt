@@ -1,24 +1,44 @@
-package com.bugra.campussync.utils // Kendi paket adına dikkat et
+package com.bugra.campussync.utils
 
 import android.content.Context
 import android.content.SharedPreferences
 
 class TokenManager(context: Context) {
-    // "campus_sync_prefs" adında gizli bir dosya oluşturuyoruz
     private val prefs: SharedPreferences = context.getSharedPreferences("campus_sync_prefs", Context.MODE_PRIVATE)
 
-    // Token'ı kaydetme fonksiyonu
-    fun saveToken(token: String) {
-        prefs.edit().putString("ACCESS_TOKEN", token).apply()
+    fun saveAuthData(token: String, role: String, username: String) {
+        prefs.edit().apply {
+            putString("ACCESS_TOKEN", token)
+            putString("USER_ROLE", role)
+            putString("USERNAME", username)
+            apply()
+        }
     }
 
-    // Token'ı okuma fonksiyonu
-    fun getToken(): String? {
-        return prefs.getString("ACCESS_TOKEN", null)
+    fun saveProfileInfo(nameSurname: String, department: String, position: String) {
+        prefs.edit().apply {
+            putString("NAME_SURNAME", nameSurname)
+            putString("DEPARTMENT", department)
+            putString("POSITION", position)
+            apply()
+        }
     }
 
-    // Çıkış yapıldığında Token'ı silme fonksiyonu
-    fun clearToken() {
-        prefs.edit().remove("ACCESS_TOKEN").apply()
+    fun getToken(): String? = prefs.getString("ACCESS_TOKEN", null)
+    fun getRole(): String? = prefs.getString("USER_ROLE", null)
+    fun getUsername(): String? = prefs.getString("USERNAME", null)
+    
+    fun getNameSurname(): String? = prefs.getString("NAME_SURNAME", null)
+    fun getDepartment(): String? = prefs.getString("DEPARTMENT", null)
+    fun getPosition(): String? = prefs.getString("POSITION", null)
+
+    fun isProfileComplete(): Boolean {
+        return !getNameSurname().isNullOrBlank() && 
+               !getDepartment().isNullOrBlank() && 
+               !getPosition().isNullOrBlank()
+    }
+
+    fun clearAll() {
+        prefs.edit().clear().apply()
     }
 }

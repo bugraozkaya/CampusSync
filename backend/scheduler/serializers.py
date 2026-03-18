@@ -7,10 +7,14 @@ class InstitutionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class UserSerializer(serializers.ModelSerializer):
+    # Bölüm ismini düz metin olarak almak için
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    institution_name = serializers.CharField(source='institution.name', read_only=True)
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'role', 'institution', 'is_approved']
-        # Şifreleri API'de direkt açıkça vermemek için fields'ı özel seçtik.
+        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'role', 'institution', 'institution_name', 'department_name', 'is_approved']
+        extra_kwargs = {'password': {'write_only': True}}
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -23,7 +27,6 @@ class CourseSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ScheduleSerializer(serializers.ModelSerializer):
-    # YENİ EKLENEN 2 SATIR: İlişkili tablolardaki isimleri çekiyoruz
     course_name = serializers.StringRelatedField(source='course', read_only=True)
     classroom_name = serializers.StringRelatedField(source='classroom', read_only=True)
     class Meta:
