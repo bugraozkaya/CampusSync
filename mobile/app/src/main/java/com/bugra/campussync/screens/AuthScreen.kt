@@ -1,87 +1,133 @@
 package com.bugra.campussync.screens
 
-import android.util.Log
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bugra.campussync.network.LoginRequest
-import com.bugra.campussync.network.RetrofitClient
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bugra.campussync.utils.TokenManager
-import kotlinx.coroutines.launch
+import com.bugra.campussync.viewmodels.AuthViewModel
 
 @Composable
-fun AuthScreen(onLoginSuccess: () -> Unit) {
+fun AuthScreen(onLoginSuccess: (mustChangePassword: Boolean) -> Unit) {
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
+    val focusManager = LocalFocusManager.current
+
+    val viewModel: AuthViewModel = viewModel()
+    val state by viewModel.state.collectAsState()
+    val isLoading = state.isLoading
+    val errorMessage = state.errorMessage
 
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf("") }
-    val coroutineScope = rememberCoroutineScope()
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    // Consume login result — save to TokenManager and navigate
+    LaunchedEffect(state.loginResult) {
+        val result = state.loginResult ?: return@LaunchedEffect
+        tokenManager.saveAuthData(
+            token = result.access,
+            refreshToken = result.refresh,
+            role = result.role,
+            username = result.username,
+            mustChangePassword = result.mustChangePassword
+        )
+        if (!result.firstName.isNullOrBlank() || !result.lastName.isNullOrBlank()) {
+            tokenManager.saveUserInfo(result.firstName, result.lastName, result.title)
+        }
+        viewModel.consumeLoginResult()
+        onLoginSuccess(result.mustChangePassword)
+    }
+
+    val canLogin = username.isNotBlank() && password.isNotBlank() && !isLoading
 
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("CampusSync", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(32.dp))
+        Text("CampusSync", fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+        Text(
+            "Ders Programı Yönetim Sistemi",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 40.dp)
+        )
 
-        OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("Kullanıcı Adı") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
-            value = password, onValueChange = { password = it }, 
-            label = { Text("Şifre") }, 
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            value = username,
+            onValueChange = { username = it; viewModel.clearError() },
+            label = { Text("Kullanıcı Adı") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+            isError = errorMessage.isNotEmpty()
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it; viewModel.clearError() },
+            label = { Text("Şifre") },
+            singleLine = true,
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(
+                        if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = if (passwordVisible) "Şifreyi gizle" else "Şifreyi göster"
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus(); viewModel.login(username, password) }),
+            isError = errorMessage.isNotEmpty()
         )
 
         if (errorMessage.isNotEmpty()) {
-            Text(errorMessage, color = Color.Red, modifier = Modifier.padding(top = 16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(errorMessage, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(12.dp), fontSize = 13.sp)
+            }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
         Button(
-            onClick = {
-                coroutineScope.launch {
-                    isLoading = true
-                    errorMessage = ""
-                    try {
-                        val response = RetrofitClient.apiService.login(LoginRequest(username, password))
-                        
-                        // LOG: Rolün ne geldiğini görelim
-                        Log.d("AUTH_DEBUG", "Gelen Rol: ${response.role}")
-
-                        tokenManager.saveAuthData(
-                            token = response.access,
-                            role = response.role,
-                            username = response.username
-                        )
-                        onLoginSuccess()
-                    } catch (e: Exception) {
-                        errorMessage = "Hata: Bilgileri kontrol edin."
-                    } finally {
-                        isLoading = false
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            enabled = !isLoading
+            onClick = { viewModel.login(username, password) },
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            enabled = canLogin
         ) {
-            if (isLoading) CircularProgressIndicator(color = Color.White)
-            else Text("Giriş Yap")
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(22.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Text("Giriş yapılıyor...")
+            } else {
+                Text("Giriş Yap", fontSize = 16.sp)
+            }
         }
     }
 }

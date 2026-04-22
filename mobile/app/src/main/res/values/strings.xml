@@ -1,3 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">CampusSync</string>
+
+    <!-- Nav labels -->
+    <string name="nav_home">Ana Sayfa</string>
+    <string name="nav_calendar">Takvim</string>
+    <string name="nav_classrooms">Sınıflar</string>
+    <string name="nav_data">Hocalar</string>
+    <string name="nav_settings">Ayarlar</string>
+    <string name="nav_availability">Müsaitlik</string>
+    <string name="nav_users">Kullanıcılar</string>
+    <string name="nav_admin">Yönetim</string>
+
+    <!-- Common -->
+    <string name="action_save">Kaydet</string>
+    <string name="action_cancel">İptal</string>
+    <string name="action_add">Ekle</string>
+    <string name="action_delete">Sil</string>
+    <string name="action_confirm">Onayla</string>
+    <string name="action_logout">Çıkış Yap</string>
+    <string name="action_close">Kapat</string>
+    <string name="label_loading">Yükleniyor…</string>
+    <string name="label_error">Hata</string>
+    <string name="label_empty">Kayıt bulunamadı.</string>
+
+    <!-- Auth -->
+    <string name="auth_login">Giriş Yap</string>
+    <string name="auth_username">Kullanıcı Adı</string>
+    <string name="auth_password">Şifre</string>
+    <string name="auth_welcome">Tekrar Hoş Geldiniz</string>
+    <string name="auth_subtitle">Kurumsal hesabınızla giriş yapın</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Ayarlar</string>
+    <string name="settings_appearance">Görünüm</string>
+    <string name="settings_theme_light">Açık</string>
+    <string name="settings_theme_system">Sistem</string>
+    <string name="settings_theme_dark">Koyu</string>
+    <string name="settings_language">Dil</string>
+    <string name="settings_language_tr">Türkçe</string>
+    <string name="settings_language_en">English</string>
+
+    <!-- Roles -->
+    <string name="role_superadmin">Süper Admin</string>
+    <string name="role_admin">Kurum Yöneticisi</string>
+    <string name="role_lecturer">Öğretim Üyesi</string>
+    <string name="role_staff">Personel</string>
+    <string name="role_it">IT Personeli</string>
+    <string name="role_student">Öğrenci</string>
+
+    <!-- Classroom types -->
+    <string name="classroom_lecture">Derslik</string>
+    <string name="classroom_lab">Laboratuvar</string>
+    <string name="classroom_computer_lab">Bilgisayar Laboratuvarı</string>
+    <string name="classroom_seminar">Seminer Salonu</string>
+    <string name="classroom_other">Diğer</string>
+
+    <!-- Calendar / Schedule -->
+    <string name="schedule_add">Ders Ekle</string>
+    <string name="schedule_edit">Dersi Düzenle</string>
+    <string name="schedule_auto">Otomatik Program Oluştur</string>
+    <string name="schedule_conflict">Çakışma tespit edildi.</string>
+    <string name="schedule_type_lecture">Teorik</string>
+    <string name="schedule_type_lab">Laboratuvar</string>
+
+    <!-- Availability -->
+    <string name="availability_title">Müsaitlik Durumu</string>
+    <string name="availability_subtitle">Uygun olmadığınız ders saatlerini işaretleyin</string>
+    <string name="availability_saved">Müsaitlik durumu kaydedildi.</string>
+
+    <!-- Change password -->
+    <string name="change_password_title">Şifre Değiştir</string>
+    <string name="change_password_current">Mevcut Şifre</string>
+    <string name="change_password_new">Yeni Şifre</string>
+    <string name="change_password_confirm">Yeni Şifre (Tekrar)</string>
+    <string name="change_password_mismatch">Şifreler eşleşmiyor.</string>
+    <string name="change_password_success">Şifreniz güncellendi.</string>
 </resources>

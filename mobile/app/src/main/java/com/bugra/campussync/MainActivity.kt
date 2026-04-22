@@ -15,20 +15,28 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.bugra.campussync.network.RetrofitClient
+import com.bugra.campussync.network.SessionManager
 import com.bugra.campussync.screens.*
 import com.bugra.campussync.ui.theme.CampusSyncTheme
+import com.bugra.campussync.ui.theme.ThemeMode
+import com.bugra.campussync.utils.ThemePreferences
 import com.bugra.campussync.utils.TokenManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            CampusSyncTheme {
+            val context = LocalContext.current
+            val themePreferences = remember { ThemePreferences(context) }
+            val themeMode by themePreferences.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+
+            CampusSyncTheme(themeMode = themeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppNavigation()
+                    AppNavigation(themePreferences = themePreferences)
                 }
             }
         }
@@ -36,17 +44,44 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(themePreferences: ThemePreferences? = null) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val context = LocalContext.current
+
+    // RetrofitClient Application.onCreate'de init edildi; token buradan okunur
     val tokenManager = remember { TokenManager(context) }
-    
-    // Rolü dinamik bir state yapalım
+
+    // Token refresh başarısız olunca SessionManager login ekranına yönlendirir
+    LaunchedEffect(Unit) {
+        SessionManager.logoutEvent.collect {
+            tokenManager.clearAll()
+            RetrofitClient.authToken = null
+            navController.navigate("auth") {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
+    // Kayıtlı dili uygulama başlangıcında ve değişimde uygula
+    val languageCode by (themePreferences?.languageCode
+        ?: kotlinx.coroutines.flow.flowOf("tr"))
+        .collectAsState(initial = "tr")
+
+    LaunchedEffect(languageCode) {
+        val locale = java.util.Locale(languageCode)
+        java.util.Locale.setDefault(locale)
+        val config = android.content.res.Configuration()
+        config.setLocale(locale)
+        @Suppress("DEPRECATION")
+        context.resources.updateConfiguration(config, context.resources.displayMetrics)
+    }
+
+    // Rolü dinamik state olarak tut
     var userRole by remember { mutableStateOf(tokenManager.getRole() ?: "") }
 
-    // Rota değiştiğinde rolü tekrar kontrol et (Güvenlik için)
+    // Rota değiştiğinde rolü senkronize et
     LaunchedEffect(currentRoute) {
         val updatedRole = tokenManager.getRole() ?: ""
         if (updatedRole != userRole) {
@@ -54,45 +89,85 @@ fun AppNavigation() {
         }
     }
 
+    // Başlangıç rotasını belirle: token yok → onboarding, mustChange → change_password, diğer → home
     val startDest = remember {
-        if (tokenManager.getToken() != null) "home" else "onboarding"
-    }
-
-    val bottomNavItems = remember(userRole) {
-        when (userRole.uppercase()) {
-            "SUPERADMIN" -> listOf("home", "admin_panel", "settings")
-            "ADMIN" -> listOf("home", "calendar", "data", "users", "settings")
-            "LECTURER" -> listOf("home", "calendar", "availability", "settings")
-            else -> listOf("home", "calendar", "settings")
+        when {
+            tokenManager.getToken() == null -> "onboarding"
+            tokenManager.getMustChangePassword() -> "change_password"
+            (tokenManager.getRole() ?: "").uppercase() == "STUDENT" -> "student_home"
+            else -> "home"
         }
     }
 
+    // Rol bazlı bottom nav öğeleri
+    val bottomNavItems = remember(userRole) {
+        val role = userRole.uppercase()
+        when {
+            role.contains("SUPER") ->
+                listOf("home", "calendar", "users", "superadmin", "announcements", "attendance", "chat_inbox", "materials", "settings")
+            role.contains("ADMIN") || role.contains("STAFF") || role.contains("IT") ->
+                listOf("home", "calendar", "classrooms", "data", "announcements", "attendance", "chat_inbox", "materials", "settings")
+            role == "LECTURER" ->
+                listOf("home", "calendar", "availability", "announcements", "attendance", "chat_inbox", "materials", "grades", "settings")
+            role == "STUDENT" ->
+                listOf("student_home", "announcements", "attendance", "chat_inbox", "materials", "grades", "settings")
+            else ->
+                listOf("home", "calendar", "announcements", "attendance", "chat_inbox", "settings")
+        }
+    }
+
+    // Bottom bar'ın gösterileceği rotalar
+    val bottomBarRoutes = setOf(
+        "home", "calendar", "classrooms", "data", "settings",
+        "availability", "users", "superadmin", "student_home", "announcements", "attendance",
+        "chat_inbox", "materials", "grades"
+    )
+
     Scaffold(
         bottomBar = {
-            if (currentRoute in bottomNavItems) {
+            if (currentRoute in bottomBarRoutes) {
                 NavigationBar {
                     bottomNavItems.forEach { screen ->
                         NavigationBarItem(
                             icon = {
-                                when(screen) {
-                                    "home" -> Icon(Icons.Default.Home, contentDescription = "Home")
-                                    "calendar" -> Icon(Icons.Default.DateRange, contentDescription = "Calendar")
-                                    "data" -> Icon(Icons.Default.Add, contentDescription = "Data")
-                                    "users" -> Icon(Icons.Default.People, contentDescription = "Users")
-                                    "availability" -> Icon(Icons.Default.EditCalendar, contentDescription = "Availability")
-                                    "admin_panel" -> Icon(Icons.Default.AdminPanelSettings, contentDescription = "Admin")
-                                    "settings" -> Icon(Icons.Default.Settings, contentDescription = "Settings")
+                                when (screen) {
+                                    "home"       -> Icon(Icons.Default.Home, contentDescription = "Ana Sayfa")
+                                    "calendar"   -> Icon(Icons.Default.DateRange, contentDescription = "Takvim")
+                                    "classrooms" -> Icon(Icons.Default.MeetingRoom, contentDescription = "Sınıflar")
+                                    "data"       -> Icon(Icons.Default.Group, contentDescription = "Hocalar")
+                                    "settings"   -> Icon(Icons.Default.Settings, contentDescription = "Ayarlar")
+                                    "availability" -> Icon(Icons.Default.Schedule, contentDescription = "Müsaitlik")
+                                    "users"      -> Icon(Icons.Default.People, contentDescription = "Kullanıcılar")
+                                    "superadmin" -> Icon(Icons.Default.SupervisorAccount, contentDescription = "Yönetim")
+                                    "student_home" -> Icon(Icons.Default.School, contentDescription = "Ana Sayfa")
+                                    "announcements" -> Icon(Icons.Default.Notifications, contentDescription = "Duyurular")
+                                    "attendance" -> Icon(Icons.Default.HowToReg, contentDescription = "Yoklama")
+                                    "chat_inbox" -> Icon(Icons.Default.Chat, contentDescription = "Mesajlar")
+                                    "materials"  -> Icon(Icons.Default.Folder, contentDescription = "Materyaller")
+                                    "grades"     -> Icon(Icons.Default.Grade, contentDescription = "Notlar")
+                                    else -> Icon(Icons.Default.Circle, contentDescription = screen)
                                 }
                             },
-                            label = { 
-                                val label = when(screen) {
-                                    "data" -> "Excel"
-                                    "users" -> "Personel"
-                                    "admin_panel" -> "Yönetim"
-                                    "availability" -> "Müsaitlik"
-                                    else -> screen.replaceFirstChar { it.uppercase() }
-                                }
-                                Text(label) 
+                            label = {
+                                Text(
+                                    when (screen) {
+                                        "home"         -> "Ana Sayfa"
+                                        "calendar"     -> "Takvim"
+                                        "classrooms"   -> "Sınıflar"
+                                        "data"         -> "Hocalar"
+                                        "settings"     -> "Ayarlar"
+                                        "availability" -> "Müsaitlik"
+                                        "users"        -> "Kullanıcılar"
+                                        "superadmin"   -> "Yönetim"
+                                        "student_home" -> "Ana Sayfa"
+                                        "announcements" -> "Duyurular"
+                                        "attendance" -> "Yoklama"
+                                        "chat_inbox" -> "Mesajlar"
+                                        "materials"  -> "Materyaller"
+                                        "grades"     -> "Notlar"
+                                        else -> screen.replaceFirstChar { it.uppercase() }
+                                    }
+                                )
                             },
                             selected = currentRoute == screen,
                             onClick = {
@@ -116,7 +191,7 @@ fun AppNavigation() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable("onboarding") {
-                OnboardingScreen(onNavigateToAuth = { 
+                OnboardingScreen(onNavigateToAuth = {
                     navController.navigate("auth") {
                         popUpTo("onboarding") { inclusive = true }
                     }
@@ -124,47 +199,132 @@ fun AppNavigation() {
             }
 
             composable("auth") {
-                AuthScreen(onLoginSuccess = {
-                    // Login başarılı olunca rolü hemen güncelle
+                AuthScreen(onLoginSuccess = { mustChange ->
                     userRole = tokenManager.getRole() ?: ""
-                    navController.navigate("home") {
+                    RetrofitClient.authToken = tokenManager.getToken()
+                    if (mustChange) {
+                        navController.navigate("change_password") {
+                            popUpTo("auth") { inclusive = true }
+                        }
+                    } else if (userRole.uppercase() == "STUDENT") {
+                        navController.navigate("student_home") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    } else {
+                        navController.navigate("home") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                })
+            }
+
+            composable("change_password") {
+                ChangePasswordScreen(onPasswordChanged = {
+                    val dest = if ((tokenManager.getRole() ?: "").uppercase() == "STUDENT") "student_home" else "home"
+                    navController.navigate(dest) {
                         popUpTo(0) { inclusive = true }
                     }
                 })
             }
 
             composable("home") {
-                HomeScreen(onLogoutClick = {
-                    tokenManager.clearAll()
-                    userRole = ""
-                    navController.navigate("auth") {
-                        popUpTo(0) { inclusive = true }
+                HomeScreen(
+                    onLogoutClick = {
+                        tokenManager.clearAll()
+                        RetrofitClient.authToken = null
+                        userRole = ""
+                        navController.navigate("auth") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate("settings")
                     }
-                })
+                )
             }
 
             composable("calendar") {
-                CalendarScreen(schedules = emptyList()) 
+                CalendarScreen()
+            }
+
+            composable("classrooms") {
+                ClassroomScreen()
             }
 
             composable("data") {
-                DataScreen()
-            }
-
-            composable("users") {
-                UserManagementScreen()
-            }
-
-            composable("admin_panel") {
-                SuperAdminScreen()
+                DataScreen(
+                    onNavigateToCalendar = {
+                        navController.navigate("calendar")
+                    }
+                )
             }
 
             composable("availability") {
                 AvailabilityScreen()
             }
 
+            composable("users") {
+                UserManagementScreen()
+            }
+
+            composable("superadmin") {
+                SuperAdminScreen()
+            }
+
+            composable("student_home") {
+                StudentHomeScreen()
+            }
+
+            composable("announcements") {
+                AnnouncementsScreen()
+            }
+
+            composable("attendance") {
+                AttendanceScreen()
+            }
+
             composable("settings") {
-                SettingsScreen()
+                SettingsScreen(
+                    onProfileSaved = {
+                        userRole = tokenManager.getRole() ?: ""
+                    },
+                    onLogoutClick = {
+                        tokenManager.clearAll()
+                        RetrofitClient.authToken = null
+                        userRole = ""
+                        navController.navigate("auth") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    themePreferences = themePreferences
+                )
+            }
+
+            composable("chat_inbox") {
+                ChatInboxScreen(onOpenChat = { partnerId, partnerName ->
+                    navController.navigate("chat/$partnerId/${java.net.URLEncoder.encode(partnerName, "UTF-8")}")
+                })
+            }
+
+            composable("materials") { CourseMaterialsScreen() }
+            composable("grades")    { GradeBookScreen() }
+
+            composable(
+                "chat/{partnerId}/{partnerName}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("partnerId") { type = androidx.navigation.NavType.IntType },
+                    androidx.navigation.navArgument("partnerName") { type = androidx.navigation.NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val partnerId   = backStackEntry.arguments?.getInt("partnerId") ?: 0
+                val partnerName = backStackEntry.arguments?.getString("partnerName")?.let {
+                    java.net.URLDecoder.decode(it, "UTF-8")
+                } ?: ""
+                ChatScreen(
+                    partnerId   = partnerId,
+                    partnerName = partnerName,
+                    onBack      = { navController.popBackStack() }
+                )
             }
         }
     }

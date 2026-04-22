@@ -1,16 +1,54 @@
 package com.bugra.campussync.network
 
+import android.content.Context
+import com.bugra.campussync.utils.TokenManager
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    // Emülatörden bilgisayarın localhost'una (Django'ya) erişmek için özel IP: 10.0.2.2
-    private const val BASE_URL = "http://10.0.2.2:8000/"
+    const val BASE_URL = "http://10.0.2.2:8000/"
 
-    val apiService: ApiService by lazy {
-        Retrofit.Builder()
+    @Volatile
+    var authToken: String? = null
+
+    private var _apiService: ApiService? = null
+    val apiService: ApiService
+        get() = _apiService ?: error("RetrofitClient.init(context) çağrılmadı")
+
+    fun init(context: Context) {
+        val tokenManager = TokenManager(context.applicationContext)
+        tokenManager.getToken()?.let { authToken = it }
+
+        val authenticator = TokenAuthenticator(tokenManager, BASE_URL)
+
+        val authInterceptor = Interceptor { chain ->
+            val builder = chain.request().newBuilder()
+            authToken?.let { builder.header("Authorization", "Bearer $it") }
+            builder.header("Accept", "application/json")
+            chain.proceed(builder.build())
+        }
+
+        val logging = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+
+        val client = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .addInterceptor(authInterceptor)
+            .addInterceptor(logging)
+            .authenticator(authenticator)
+            .build()
+
+        _apiService = Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create()) // Gelen JSON'u Kotlin sınıflarına çevirir
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ApiService::class.java)
     }

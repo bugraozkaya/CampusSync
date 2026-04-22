@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CampusSync</string>
+
+    <!-- Nav labels -->
+    <string name="nav_home">Home</string>
+    <string name="nav_calendar">Schedule</string>
+    <string name="nav_classrooms">Classrooms</string>
+    <string name="nav_data">Lecturers</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_availability">Availability</string>
+    <string name="nav_users">Users</string>
+    <string name="nav_admin">Management</string>
+
+    <!-- Common -->
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_add">Add</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="action_logout">Log Out</string>
+    <string name="action_close">Close</string>
+    <string name="label_loading">Loading…</string>
+    <string name="label_error">Error</string>
+    <string name="label_empty">No records found.</string>
+
+    <!-- Auth -->
+    <string name="auth_login">Sign In</string>
+    <string name="auth_username">Username</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_welcome">Welcome Back</string>
+    <string name="auth_subtitle">Sign in with your institutional account</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_tr">Türkçe</string>
+    <string name="settings_language_en">English</string>
+
+    <!-- Roles -->
+    <string name="role_superadmin">Super Admin</string>
+    <string name="role_admin">Institution Admin</string>
+    <string name="role_lecturer">Lecturer</string>
+    <string name="role_staff">Staff</string>
+    <string name="role_it">IT Staff</string>
+    <string name="role_student">Student</string>
+
+    <!-- Classroom types -->
+    <string name="classroom_lecture">Classroom</string>
+    <string name="classroom_lab">Laboratory</string>
+    <string name="classroom_computer_lab">Computer Lab</string>
+    <string name="classroom_seminar">Seminar Hall</string>
+    <string name="classroom_other">Other</string>
+
+    <!-- Calendar / Schedule -->
+    <string name="schedule_add">Add Class</string>
+    <string name="schedule_edit">Edit Class</string>
+    <string name="schedule_auto">Auto-Generate Schedule</string>
+    <string name="schedule_conflict">Conflict detected.</string>
+    <string name="schedule_type_lecture">Lecture</string>
+    <string name="schedule_type_lab">Lab</string>
+
+    <!-- Availability -->
+    <string name="availability_title">Availability</string>
+    <string name="availability_subtitle">Mark the time slots when you are unavailable</string>
+    <string name="availability_saved">Availability saved.</string>
+
+    <!-- Change password -->
+    <string name="change_password_title">Change Password</string>
+    <string name="change_password_current">Current Password</string>
+    <string name="change_password_new">New Password</string>
+    <string name="change_password_confirm">Confirm New Password</string>
+    <string name="change_password_mismatch">Passwords do not match.</string>
+    <string name="change_password_success">Password updated successfully.</string>
+</resources>
