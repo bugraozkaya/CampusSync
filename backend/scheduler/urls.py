@@ -5,7 +5,7 @@ from .views import (
     CourseViewSet, ScheduleViewSet, ClassroomViewSet, UnavailabilityViewSet,
     StudentEnrollmentViewSet, AnnouncementViewSet, FCMTokenViewSet,
     AttendanceViewSet, export_schedule_pdf,
-    ChatViewSet, CourseMaterialViewSet, GradeViewSet,
+    ChatViewSet, CourseMaterialViewSet, GradeViewSet, forgot_password,
 )
 
 router = DefaultRouter()
@@ -30,4 +30,5 @@ urlpatterns = [
 
 urlpatterns += [
     path('schedules/export_pdf/', export_schedule_pdf, name='export-schedule-pdf'),
+    path('forgot-password/', forgot_password, name='forgot-password'),
 ]

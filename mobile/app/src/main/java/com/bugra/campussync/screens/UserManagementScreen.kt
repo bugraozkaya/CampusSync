@@ -20,10 +20,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.viewmodels.UserManagementViewModel
 
 @Composable
 fun UserManagementScreen() {
+    val strings = LocalAppStrings.current
     val viewModel: UserManagementViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -32,13 +34,13 @@ fun UserManagementScreen() {
     val errorMessage = state.error ?: ""
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Üniversite Personeli", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Text("Sisteme kayıtlı tüm personel", fontSize = 13.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
+        Text(strings.usersTitle, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text(strings.usersSubtitle, fontSize = 13.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
 
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { viewModel.onSearch(it) },
-            placeholder = { Text("Kullanıcı ara…") },
+            placeholder = { Text(strings.usersSearch) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
             singleLine = true,
@@ -51,7 +53,7 @@ fun UserManagementScreen() {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator()
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Yükleniyor...", fontSize = 13.sp, color = Color.Gray)
+                        Text(strings.loading, fontSize = 13.sp, color = Color.Gray)
                     }
                 }
             }
@@ -62,7 +64,7 @@ fun UserManagementScreen() {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(errorMessage, color = Color.Gray)
                         Spacer(modifier = Modifier.height(12.dp))
-                        Button(onClick = { viewModel.load() }) { Text("Tekrar Dene") }
+                        Button(onClick = { viewModel.load() }) { Text(strings.retry) }
                     }
                 }
             }
@@ -72,14 +74,14 @@ fun UserManagementScreen() {
                         Icon(Icons.Default.Group, null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            if (searchQuery.isBlank()) "Kayıtlı kullanıcı bulunamadı." else "\"$searchQuery\" için sonuç yok.",
+                            if (searchQuery.isBlank()) strings.usersNone else "\"$searchQuery\" ${strings.usersNoResults}",
                             color = Color.Gray
                         )
                     }
                 }
             }
             else -> {
-                Text("${userList.size} kullanıcı", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
+                Text("${userList.size} ${strings.people}", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(userList) { user -> UserCard(user) }
                 }
@@ -90,6 +92,7 @@ fun UserManagementScreen() {
 
 @Composable
 fun UserCard(user: Map<String, Any>) {
+    val strings = LocalAppStrings.current
     val firstName = user["first_name"]?.toString() ?: ""
     val lastName = user["last_name"]?.toString() ?: ""
     val username = user["username"]?.toString() ?: ""
@@ -98,12 +101,14 @@ fun UserCard(user: Map<String, Any>) {
     val dept = user["department_name"]?.toString() ?: user["department"]?.toString() ?: ""
 
     val roleLabel = when (role) {
-        "ADMIN"    -> "Yönetici"
-        "LECTURER" -> "Öğretim Üyesi"
-        "SUPER"    -> "Süper Admin"
-        "STAFF"    -> "Personel"
-        "IT"       -> "IT"
-        else       -> role.ifEmpty { "Bilinmiyor" }
+        "ADMIN"      -> strings.roleAdmin
+        "LECTURER"   -> strings.roleLecturer
+        "SUPERADMIN" -> strings.roleSuperAdmin
+        "SUPER"      -> strings.roleSuperAdmin
+        "STAFF"      -> strings.roleStaff
+        "IT"         -> strings.roleIT
+        "STUDENT"    -> strings.roleStudent
+        else         -> role.ifEmpty { strings.roleUnknown }
     }
 
     val roleColor = when (role) {

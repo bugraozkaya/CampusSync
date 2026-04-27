@@ -9,9 +9,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bugra.campussync.utils.LocalAppStrings
 
 @Composable
 fun OnboardingScreen(onNavigateToAuth: () -> Unit) {
+    val strings = LocalAppStrings.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -30,7 +32,7 @@ fun OnboardingScreen(onNavigateToAuth: () -> Unit) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Üniversitenizle Senkronize Olun",
+            text = strings.onboardingTitle,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center
@@ -39,7 +41,7 @@ fun OnboardingScreen(onNavigateToAuth: () -> Unit) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Ders programınızı takip edin, sınıfları bulun ve okul hayatınızı tek bir yerden kolayca yönetin. Üstelik birden fazla kurum desteğiyle!",
+            text = strings.onboardingBody,
             fontSize = 16.sp,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -54,7 +56,7 @@ fun OnboardingScreen(onNavigateToAuth: () -> Unit) {
                 .height(56.dp),
             shape = MaterialTheme.shapes.medium
         ) {
-            Text(text = "Hemen Başla", fontSize = 18.sp)
+            Text(text = strings.onboardingStart, fontSize = 18.sp)
         }
     }
 }

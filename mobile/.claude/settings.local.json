@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/Github/CampusSync//**)",
+      "Read(//d/Github/CampusSync/**)",
+      "Bash(ls \"/d/Github/CampusSync/mobile/\"*.txt \"/d/Github/CampusSync/mobile/\"*.pdf)",
+      "Bash(rm -f db.sqlite3)",
+      "Bash(venv/Scripts/python.exe manage.py makemigrations)",
+      "Bash(venv/Scripts/python.exe manage.py migrate)",
+      "Bash(venv/Scripts/python.exe manage.py check)",
+      "Bash(python manage.py makemigrations scheduler)",
+      "Bash(python manage.py migrate)",
+      "Bash(python *)",
+      "Bash(pip list *)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(adb logcat *)",
+      "PowerShell(Test-Path *)",
+      "PowerShell($adb = \"C:\\\\Program Files \\(x86\\)\\\\Android\\\\android-sdk\\\\platform-tools\\\\adb.exe\"; & $adb logcat -d -s AndroidRuntime:E 2>&1 | Select-Object -Last 80)",
+      "Bash(\"C:\\\\Program Files \\(x86\\)\\\\Android\\\\android-sdk\\\\platform-tools\\\\adb.exe\" install -r \"app\\\\build\\\\outputs\\\\apk\\\\debug\\\\app-debug.apk\")",
+      "Bash(adb install *)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"D:\\\\Github\\\\CampusSync\\\\mobile\\\\app\\\\build\\\\outputs\\\\apk\\\\debug\\\\app-debug.apk\")",
+      "PowerShell(& \"D:\\\\AndroidSDK\\\\platform-tools\\\\adb.exe\" install -r \"D:\\\\Github\\\\CampusSync\\\\mobile\\\\app\\\\build\\\\outputs\\\\apk\\\\debug\\\\app-debug.apk\")"
+    ]
+  }
+}

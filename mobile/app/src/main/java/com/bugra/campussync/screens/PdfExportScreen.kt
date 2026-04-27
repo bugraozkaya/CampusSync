@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.bugra.campussync.network.RetrofitClient
+import com.bugra.campussync.utils.LocalAppStrings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,6 +30,7 @@ fun PdfExportButton(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val strings = LocalAppStrings.current
     val scope = rememberCoroutineScope()
     var isDownloading by remember { mutableStateOf(false) }
 
@@ -42,14 +44,13 @@ fun PdfExportButton(
                         saveToDownloads(context, responseBody.bytes(), "ders_programi.pdf")
                     }
                     if (saved != null) {
-                        Toast.makeText(context, "PDF kaydedildi: İndirilenler/ders_programi.pdf", Toast.LENGTH_LONG).show()
-                        // Open PDF
+                        Toast.makeText(context, strings.pdfSaved, Toast.LENGTH_LONG).show()
                         openPdf(context, saved)
                     } else {
-                        Toast.makeText(context, "Kaydedilemedi.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, strings.pdfSaveFailed, Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
-                    Toast.makeText(context, "PDF indirilemedi: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, strings.pdfDownloadFailed + e.message, Toast.LENGTH_SHORT).show()
                 } finally {
                     isDownloading = false
                 }
@@ -68,7 +69,7 @@ fun PdfExportButton(
         } else {
             Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text("PDF İndir")
+            Text(strings.pdfDownload)
         }
     }
 }
@@ -107,6 +108,6 @@ private fun openPdf(context: Context, uri: Uri) {
         }
         context.startActivity(intent)
     } catch (_: Exception) {
-        // No PDF reader installed — just show toast that file was saved
+        // No PDF reader installed — file was saved to Downloads
     }
 }

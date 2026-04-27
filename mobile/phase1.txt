@@ -1,0 +1,85 @@
+Course Project
+In this project, students are required to develop a course schedule application for a university using an Android application.
+The application will include 4 navigation menus:
+1.	Navigation → Home
+2.	Navigation → Calendar
+3.	Navigation → Data (Import and Display Data)
+4.	Navigation → Settings
+1. Navigation → Home
+When the application is first opened, if the department and position selections have not been completed, an alert message should appear stating that the required registration process must be completed first.
+2. Navigation → Calendar
+If the logged-in user is a Lecturer, only the Home and Calendar navigation menus will be visible.
+On the Home screen, the following information will be displayed:
+•	Welcome [Name Surname]
+•	Department information
+If the user is a Lecturer, they will only see the courses assigned to them.
+If the user is Admin / IT, during the initial setup, the course schedule of the selected department (e.g., Computer Engineering) will be displayed.
+3. Navigation → Data
+If no data has been entered yet, there will be a single “+” (plus) button in the center of the screen. Through this button, course and lecturer lists will be imported from an Excel or TXT file.
+Example Excel Structure:
+Course Code	Course Name	Lecturer
+CNG 103	Intro to Programming	Assoc. Prof. Halit Bakır
+CNG 101	Intro to Computer Engineering	Assist. Prof. Rezan Bakır
+CNG 104	Programming	Assist. Prof. Porkodi Sivaram
+EEE 102	Circuit Theory I	Assist. Prof. Recep Emir
+EEE 204	Digital System Design	Assist. Prof. Nurbanu Güzey
+EEE 206	Microprocessors	Assist. Prof. Celal Alagöz
+CNG 244	Operating Systems	Prof. Sivaram Murugan
+CNG 212	Programming Languages	Assoc. Prof. Farhan Aadil
+CNG 342	Computer Networks	Assist. Prof. Rezan Bakır
+CNG 346	Mobile Programming	Assoc. Prof. Farhan Aadil
+During import:
+•	Course codes and course names will be matched.
+•	Courses and lecturers will also be matched accordingly with the department information.
+After the import process:
+If lecturers do not have usernames and passwords for system login (which will be the case during the first import), usernames will be generated automatically using the lowercase version of their names (after their academic titles), and a unique 6-digit password will be generated.
+Example:
+Assoc. Prof. Halit Bakır →
+Username: halit_bakir
+Password: 123456
+After importing:
+•	The "+" button in the center of the screen will be hidden.
+•	The course and lecturer list will be displayed on the screen.
+You may use either:
+•	An accordion menu, or
+•	A dropdown list for lecturer selection.
+After selecting a lecturer, a button labeled “Go to Calendar” will allow access to the lecturer’s calendar screen.
+This will allow the schedule administrator to see on which days each lecturer has classes.
+Initial Calendar Design
+To simplify the initial implementation, you may design the calendar with:
+•	2 time slots per day
+•	A total of 10 slots (5 weekdays × 2 slots)
+Example:
+Assoc. Prof. Halit Bakır Screen:
+	Monday	Tuesday	Wednesday	Thursday	Friday
+Morning					
+Afternoon					
+After building the basic system, you will need to extend the structure to display actual hour/time information instead of just “Morning” and “Afternoon.”
+
+
+
+
+
+
+
+
+4. Navigation → Settings
+There will be 2 dropdown lists:
+First Dropdown Menu – Departments
+1.	Computer Engineering
+2.	Electrical and Electronics Engineering
+3.	Mechanical Engineering
+4.	Aeronautical Engineering
+5.	Agricultural Department
+Second Dropdown Menu – Positions
+1.	Admin (IT / Person responsible for course scheduling)
+2.	Lecturer
+There will also be:
+•	An input field for Name and Surname
+•	A Save button
+After registration:
+On the Home navigation menu, the following will be displayed:
+•	Welcome [Name Surname]
+•	Selected department
+•	Selected position
+

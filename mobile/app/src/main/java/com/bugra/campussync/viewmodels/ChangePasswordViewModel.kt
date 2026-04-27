@@ -33,9 +33,13 @@ class ChangePasswordViewModel : ViewModel() {
                 )
                 onSuccess()
             } catch (e: HttpException) {
-                val msg = when (e.code()) {
-                    400 -> "Mevcut şifre hatalı. Lütfen kontrol edin."
-                    401 -> "Oturum süresi dolmuş. Lütfen tekrar giriş yapın."
+                val body = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
+                val msg = when {
+                    body?.contains("error") == true -> {
+                        val match = Regex(""""error"\s*:\s*"([^"]+)"""").find(body)
+                        match?.groupValues?.get(1) ?: "Şifre değiştirilemedi (${e.code()})."
+                    }
+                    e.code() == 401 -> "Oturum süresi dolmuş. Lütfen tekrar giriş yapın."
                     else -> "Şifre değiştirilemedi (${e.code()})."
                 }
                 _state.update { it.copy(errorMessage = msg) }

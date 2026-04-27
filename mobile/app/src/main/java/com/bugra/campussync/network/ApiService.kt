@@ -83,6 +83,9 @@ interface ApiService {
     @POST("api/v1/users/change-password/")
     suspend fun changePassword(@Body data: Map<String, String>): Map<String, String>
 
+    @POST("api/v1/forgot-password/")
+    suspend fun forgotPassword(@Body data: Map<String, String>): Map<String, String>
+
     @PATCH("api/v1/users/update-profile/")
     suspend fun updateProfile(@Body data: Map<String, String>): Map<String, String>
 
@@ -105,7 +108,7 @@ interface ApiService {
     suspend fun getUnavailability(): List<Map<String, String>>
 
     @POST("api/v1/unavailability/sync/")
-    suspend fun syncUnavailability(@Body slots: List<Map<String, String>>): Map<String, String>
+    suspend fun syncUnavailability(@Body slots: List<Map<String, String>>): okhttp3.ResponseBody
 
     // --- Enrollments ---
     @GET("api/v1/enrollments/")

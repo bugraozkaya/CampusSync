@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bugra.campussync.network.ChatMessage
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.ChatViewModel
 
@@ -26,6 +27,7 @@ import com.bugra.campussync.viewmodels.ChatViewModel
 @Composable
 fun ChatScreen(partnerId: Int, partnerName: String, onBack: () -> Unit) {
     val context      = LocalContext.current
+    val strings      = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
     val myUsername   = tokenManager.getUsername() ?: ""
 
@@ -49,12 +51,12 @@ fun ChatScreen(partnerId: Int, partnerName: String, onBack: () -> Unit) {
                 title = {
                     Column {
                         Text(partnerName, fontWeight = FontWeight.Bold)
-                        Text("Çevrimiçi", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                        Text(strings.chatOnline, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, strings.back)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -76,7 +78,7 @@ fun ChatScreen(partnerId: Int, partnerName: String, onBack: () -> Unit) {
                     OutlinedTextField(
                         value = inputText,
                         onValueChange = { inputText = it },
-                        placeholder = { Text("Mesaj yaz\u2026") },
+                        placeholder = { Text(strings.chatMessageHint) },
                         modifier = Modifier.weight(1f),
                         maxLines = 4,
                         shape = MaterialTheme.shapes.extraLarge
@@ -88,13 +90,13 @@ fun ChatScreen(partnerId: Int, partnerName: String, onBack: () -> Unit) {
                                 partnerId = partnerId,
                                 text = text,
                                 onSuccess = { inputText = "" },
-                                onError = { Toast.makeText(context, "Gönderilemedi.", Toast.LENGTH_SHORT).show() }
+                                onError = { Toast.makeText(context, strings.chatSendFailed, Toast.LENGTH_SHORT).show() }
                             )
                         },
                         enabled = inputText.isNotBlank() && !isSending,
                         modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, "Gönder")
+                        Icon(Icons.AutoMirrored.Filled.Send, strings.chatSend)
                     }
                 }
             }
@@ -102,7 +104,7 @@ fun ChatScreen(partnerId: Int, partnerName: String, onBack: () -> Unit) {
     ) { padding ->
         if (messages.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("Sohbeti başlatın!", color = Color.Gray)
+                Text(strings.chatStartConversation, color = Color.Gray)
             }
         } else {
             LazyColumn(

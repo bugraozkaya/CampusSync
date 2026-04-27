@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bugra.campussync.network.GradeItem
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.GradeBookViewModel
 
@@ -24,6 +25,7 @@ import com.bugra.campussync.viewmodels.GradeBookViewModel
 @Composable
 fun GradeBookScreen() {
     val context      = LocalContext.current
+    val strings      = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
     val role         = (tokenManager.getRole() ?: "").uppercase()
     val isStudent    = role == "STUDENT"
@@ -47,7 +49,14 @@ fun GradeBookScreen() {
     var gradeNotes    by remember { mutableStateOf("") }
     var gradeTypeExp  by remember { mutableStateOf(false) }
 
-    val GRADE_TYPES = listOf("MIDTERM" to "Vize", "FINAL" to "Final", "QUIZ" to "Quiz", "HW" to "Ödev", "LAB" to "Lab", "OTHER" to "Diğer")
+    val GRADE_TYPES = listOf(
+        "MIDTERM" to strings.gradesMidterm,
+        "FINAL"   to strings.gradesFinal,
+        "QUIZ"    to strings.gradesQuiz,
+        "HW"      to strings.gradesHW,
+        "LAB"     to strings.gradesLab,
+        "OTHER"   to strings.gradesOther
+    )
 
     LaunchedEffect(Unit) {
         if (!isStudent) viewModel.loadCourses()
@@ -57,20 +66,19 @@ fun GradeBookScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isStudent) "Notlarım" else "Not Defteri", fontWeight = FontWeight.Bold) },
+                title = { Text(if (isStudent) strings.gradesMyTitle else strings.gradesBookTitle, fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
         floatingActionButton = {
             if (!isStudent && selectedCourseId != null) {
                 FloatingActionButton(onClick = { showAddGrade = true }, containerColor = MaterialTheme.colorScheme.primary) {
-                    Icon(Icons.Default.Add, "Not Ekle", tint = Color.White)
+                    Icon(Icons.Default.Add, strings.gradesAdd, tint = Color.White)
                 }
             }
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // Course picker for lecturers
             if (!isStudent && courses.isNotEmpty()) {
                 ExposedDropdownMenuBox(
                     expanded = courseExpanded,
@@ -78,8 +86,8 @@ fun GradeBookScreen() {
                     modifier = Modifier.fillMaxWidth().padding(16.dp)
                 ) {
                     OutlinedTextField(
-                        value = courses.find { it.id == selectedCourseId }?.let { "${it.course_code} – ${it.course_name}" } ?: "Ders Seçin",
-                        onValueChange = {}, readOnly = true, label = { Text("Ders") },
+                        value = courses.find { it.id == selectedCourseId }?.let { "${it.course_code} – ${it.course_name}" } ?: strings.gradesSelectCourse,
+                        onValueChange = {}, readOnly = true, label = { Text(strings.courseLabel) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = courseExpanded) },
                         modifier = Modifier.menuAnchor().fillMaxWidth()
                     )
@@ -91,7 +99,6 @@ fun GradeBookScreen() {
                 }
             }
 
-            // Summary for student
             if (isStudent && grades.isNotEmpty()) {
                 val avg = grades.map { it.percentage }.average()
                 Surface(
@@ -100,7 +107,7 @@ fun GradeBookScreen() {
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Genel Ortalama", fontWeight = FontWeight.Medium)
+                        Text(strings.gradesOverallAvg, fontWeight = FontWeight.Medium)
                         Text("%.1f%%".format(avg), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
                     }
                 }
@@ -113,15 +120,14 @@ fun GradeBookScreen() {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.Grade, null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
                             Spacer(Modifier.height(8.dp))
-                            Text(if (isStudent) "Henüz notunuz yok." else "Bu ders için not girilmemiş.", color = Color.Gray)
+                            Text(if (isStudent) strings.gradesNone else strings.gradesNoneForCourse, color = Color.Gray)
                         }
                     }
                 !isStudent && selectedCourseId == null ->
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Yukarıdan bir ders seçin.", color = Color.Gray)
+                        Text(strings.gradesSelectCourseHint, color = Color.Gray)
                     }
                 else -> {
-                    // Group by course for students
                     val grouped = if (isStudent) grades.groupBy { it.course_code } else mapOf("" to grades)
                     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
                         grouped.forEach { (courseCode, courseGrades) ->
@@ -132,7 +138,7 @@ fun GradeBookScreen() {
                             }
                             items(courseGrades, key = { it.id }) { grade ->
                                 GradeCard(grade = grade, isStudent = isStudent, onDelete = if (!isStudent) {
-                                    { viewModel.deleteGrade(grade.id, isStudent) { Toast.makeText(context, "Silinemedi.", Toast.LENGTH_SHORT).show() } }
+                                    { viewModel.deleteGrade(grade.id, isStudent) { Toast.makeText(context, strings.gradesDeleteFailed, Toast.LENGTH_SHORT).show() } }
                                 } else null)
                             }
                         }
@@ -145,14 +151,14 @@ fun GradeBookScreen() {
     if (showAddGrade && selectedCourseId != null) {
         AlertDialog(
             onDismissRequest = { if (!isSubmitting) showAddGrade = false },
-            title = { Text("Not Ekle") },
+            title = { Text(strings.gradesAdd) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = gradeStudent, onValueChange = { gradeStudent = it }, label = { Text("Öğrenci Username") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(value = gradeStudent, onValueChange = { gradeStudent = it }, label = { Text(strings.gradesStudentUsername) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     ExposedDropdownMenuBox(expanded = gradeTypeExp, onExpandedChange = { gradeTypeExp = !gradeTypeExp }) {
                         OutlinedTextField(
                             value = GRADE_TYPES.find { it.first == gradeType }?.second ?: gradeType,
-                            onValueChange = {}, readOnly = true, label = { Text("Not Türü") },
+                            onValueChange = {}, readOnly = true, label = { Text(strings.gradesType) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = gradeTypeExp) },
                             modifier = Modifier.menuAnchor().fillMaxWidth()
                         )
@@ -161,10 +167,10 @@ fun GradeBookScreen() {
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = gradeScore, onValueChange = { gradeScore = it }, label = { Text("Puan") }, modifier = Modifier.weight(1f), singleLine = true)
-                        OutlinedTextField(value = gradeMax, onValueChange = { gradeMax = it }, label = { Text("Maks") }, modifier = Modifier.weight(1f), singleLine = true)
+                        OutlinedTextField(value = gradeScore, onValueChange = { gradeScore = it }, label = { Text(strings.gradesScore) }, modifier = Modifier.weight(1f), singleLine = true)
+                        OutlinedTextField(value = gradeMax, onValueChange = { gradeMax = it }, label = { Text(strings.gradesMax) }, modifier = Modifier.weight(1f), singleLine = true)
                     }
-                    OutlinedTextField(value = gradeNotes, onValueChange = { gradeNotes = it }, label = { Text("Not (opsiyonel)") }, modifier = Modifier.fillMaxWidth(), maxLines = 2)
+                    OutlinedTextField(value = gradeNotes, onValueChange = { gradeNotes = it }, label = { Text(strings.gradesNote) }, modifier = Modifier.fillMaxWidth(), maxLines = 2)
                 }
             },
             confirmButton = {
@@ -172,7 +178,7 @@ fun GradeBookScreen() {
                     onClick = {
                         val score = gradeScore.toDoubleOrNull()
                         val max = gradeMax.toDoubleOrNull() ?: 100.0
-                        if (gradeStudent.isBlank() || score == null) { Toast.makeText(context, "Kullanıcı adı ve puan zorunlu.", Toast.LENGTH_SHORT).show(); return@Button }
+                        if (gradeStudent.isBlank() || score == null) { Toast.makeText(context, strings.gradesRequired, Toast.LENGTH_SHORT).show(); return@Button }
                         viewModel.addGrade(
                             studentUsername = gradeStudent,
                             courseId = selectedCourseId!!,
@@ -182,7 +188,7 @@ fun GradeBookScreen() {
                             notes = gradeNotes,
                             onSuccess = {
                                 showAddGrade = false; gradeStudent = ""; gradeScore = ""; gradeNotes = ""
-                                Toast.makeText(context, "Not eklendi.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, strings.gradesAdded, Toast.LENGTH_SHORT).show()
                             },
                             onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
                         )
@@ -190,10 +196,10 @@ fun GradeBookScreen() {
                     enabled = !isSubmitting
                 ) {
                     if (isSubmitting) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                    else Text("Ekle")
+                    else Text(strings.add)
                 }
             },
-            dismissButton = { TextButton(onClick = { showAddGrade = false }) { Text("İptal") } }
+            dismissButton = { TextButton(onClick = { showAddGrade = false }) { Text(strings.cancel) } }
         )
     }
 }

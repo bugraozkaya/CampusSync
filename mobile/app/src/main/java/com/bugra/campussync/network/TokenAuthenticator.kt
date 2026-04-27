@@ -16,16 +16,16 @@ class TokenAuthenticator(
     override fun authenticate(route: Route?, response: okhttp3.Response): Request? {
         // Sonsuz döngüyü önle: zaten retry yapılmışsa çık
         if (response.request.header("X-Retry-Auth") != null) {
-            tokenManager.clearAll()
-            RetrofitClient.authToken = null
-            SessionManager.triggerLogout()
+            if (tokenManager.getToken() != null) {
+                tokenManager.clearAll()
+                RetrofitClient.authToken = null
+                SessionManager.triggerLogout()
+            }
             return null
         }
 
-        val refreshToken = tokenManager.getRefreshToken() ?: run {
-            SessionManager.triggerLogout()
-            return null
-        }
+        // Oturum yoksa (login isteği gibi) sessizce çık — logout tetikleme
+        val refreshToken = tokenManager.getRefreshToken() ?: return null
 
         val newAccessToken = refreshSync(refreshToken) ?: run {
             tokenManager.clearAll()

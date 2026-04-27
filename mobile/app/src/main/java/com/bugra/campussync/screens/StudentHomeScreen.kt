@@ -19,8 +19,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bugra.campussync.network.CourseItem
 import com.bugra.campussync.network.EnrollmentItem
 import com.bugra.campussync.network.ScheduleItem
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.StudentHomeViewModel
 
@@ -28,6 +30,7 @@ import com.bugra.campussync.viewmodels.StudentHomeViewModel
 @Composable
 fun StudentHomeScreen() {
     val context = LocalContext.current
+    val strings = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
 
     val viewModel: StudentHomeViewModel = viewModel()
@@ -47,8 +50,8 @@ fun StudentHomeScreen() {
             TopAppBar(
                 title = {
                     Column {
-                        Text("Merhaba${if (firstName.isNotBlank()) ", $firstName" else ""}!", fontWeight = FontWeight.Bold)
-                        Text("Öğrenci Paneli", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${strings.studentHello}${if (firstName.isNotBlank()) ", $firstName" else ""}!", fontWeight = FontWeight.Bold)
+                        Text(strings.studentPanel, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -63,7 +66,7 @@ fun StudentHomeScreen() {
                     },
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Derse Kaydol", tint = Color.White)
+                    Icon(Icons.Default.Add, contentDescription = strings.studentEnroll, tint = Color.White)
                 }
             }
         }
@@ -74,13 +77,13 @@ fun StudentHomeScreen() {
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = { Icon(Icons.Default.Book, null, modifier = Modifier.size(18.dp)) },
-                    text = { Text("Derslerim") }
+                    text = { Text(strings.studentMyCourses) }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     icon = { Icon(Icons.Default.DateRange, null, modifier = Modifier.size(18.dp)) },
-                    text = { Text("Program") }
+                    text = { Text(strings.studentSchedule) }
                 )
             }
 
@@ -93,7 +96,7 @@ fun StudentHomeScreen() {
                     enrollments = enrollments,
                     onUnenroll = { id ->
                         viewModel.unenroll(id) {
-                            Toast.makeText(context, "Kayıt silinemedi.", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, strings.studentDeleteFailed, Toast.LENGTH_SHORT).show()
                         }
                     }
                 )
@@ -113,7 +116,7 @@ fun StudentHomeScreen() {
                     courseId = courseId,
                     onSuccess = {
                         showEnrollDialog = false
-                        Toast.makeText(context, "Derse kaydolundu.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, strings.studentEnrolled, Toast.LENGTH_SHORT).show()
                     },
                     onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() }
                 )
@@ -127,13 +130,14 @@ private fun EnrollmentsTab(
     enrollments: List<EnrollmentItem>,
     onUnenroll: (Int) -> Unit
 ) {
+    val strings = LocalAppStrings.current
     if (enrollments.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.Book, null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
                 Spacer(Modifier.height(12.dp))
-                Text("Kayıtlı ders yok.", color = Color.Gray)
-                Text("+ ile derse kaydolun.", color = Color.LightGray, fontSize = 13.sp)
+                Text(strings.studentNoCourses, color = Color.Gray)
+                Text(strings.studentEnrollHint, color = Color.LightGray, fontSize = 13.sp)
             }
         }
     } else {
@@ -168,13 +172,13 @@ private fun EnrollmentsTab(
     }
 }
 
-private val DAYS = listOf("Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma")
-
 @Composable
 private fun ScheduleTab(schedule: List<ScheduleItem>) {
+    val strings = LocalAppStrings.current
+    val DAYS = listOf(strings.dayMonday, strings.dayTuesday, strings.dayWednesday, strings.dayThursday, strings.dayFriday)
     if (schedule.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Ders programı bulunamadı.", color = Color.Gray)
+            Text(strings.studentNoSchedule, color = Color.Gray)
         }
         return
     }
@@ -241,14 +245,15 @@ private fun EnrollDialog(
 ) {
     var selectedCourseId by remember { mutableStateOf<Int?>(null) }
     var expanded by remember { mutableStateOf(false) }
+    val strings = LocalAppStrings.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Derse Kaydol") },
+        title = { Text(strings.studentEnroll) },
         text = {
             Column {
-                if (courses.isEmpty()) {
-                    Text("Kayıt olabileceğiniz ders bulunamadı.", color = Color.Gray)
+        if (courses.isEmpty()) {
+                    Text(strings.studentNoAvailableCourses, color = Color.Gray)
                 } else {
                     ExposedDropdownMenuBox(
                         expanded = expanded,
@@ -256,10 +261,10 @@ private fun EnrollDialog(
                     ) {
                         OutlinedTextField(
                             value = courses.find { it.id == selectedCourseId }
-                                ?.let { "${it.course_code} – ${it.course_name}" } ?: "Ders seçin…",
+                                ?.let { "${it.course_code} – ${it.course_name}" } ?: strings.studentSelectCourse,
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Ders") },
+                            label = { Text(strings.navLecturers) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth()
                         )
@@ -282,8 +287,8 @@ private fun EnrollDialog(
             Button(
                 onClick = { selectedCourseId?.let { onEnroll(it) } },
                 enabled = selectedCourseId != null
-            ) { Text("Kaydol") }
+            ) { Text(strings.studentEnrollButton) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("İptal") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(strings.cancel) } }
     )
 }

@@ -28,23 +28,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bugra.campussync.network.ClassroomItem
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.viewmodels.ClassroomViewModel
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 
-private val CLASSROOM_TYPES = listOf(
-    "LECTURE" to "Derslik",
-    "LAB" to "Laboratuvar",
-    "COMPUTER_LAB" to "Bilgisayar Laboratuvarı",
-    "SEMINAR" to "Seminer Salonu",
-    "OTHER" to "Diğer"
-)
+private val CLASSROOM_TYPE_CODES = listOf("LECTURE", "LAB", "COMPUTER_LAB", "SEMINAR", "OTHER")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClassroomScreen() {
     val context = LocalContext.current
+    val strings = LocalAppStrings.current
     val viewModel: ClassroomViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     val classrooms = state.classrooms
@@ -92,7 +88,7 @@ fun ClassroomScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Sınıf Yönetimi", fontWeight = FontWeight.Bold) },
+                title = { Text(strings.classroomTitle, fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
@@ -103,13 +99,13 @@ fun ClassroomScreen() {
                     modifier = Modifier.padding(bottom = 8.dp),
                     containerColor = MaterialTheme.colorScheme.secondaryContainer
                 ) {
-                    Icon(Icons.Default.FileUpload, contentDescription = "Dosyadan İçe Aktar")
+                    Icon(Icons.Default.FileUpload, contentDescription = strings.classroomImportFile)
                 }
                 FloatingActionButton(
                     onClick = { showAddDialog = true },
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Sınıf Ekle", tint = Color.White)
+                    Icon(Icons.Default.Add, contentDescription = strings.classroomAdd, tint = Color.White)
                 }
             }
         }
@@ -121,7 +117,7 @@ fun ClassroomScreen() {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator()
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("Sınıflar yükleniyor...", fontSize = 13.sp, color = Color.Gray)
+                            Text(strings.classroomLoading, fontSize = 13.sp, color = Color.Gray)
                         }
                     }
                 }
@@ -136,7 +132,7 @@ fun ClassroomScreen() {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                "${filteredClassrooms.size} sınıf",
+                                "${filteredClassrooms.size} ${strings.navClassrooms}",
                                 fontSize = 13.sp, color = Color.Gray, modifier = Modifier.weight(1f)
                             )
                             ExposedDropdownMenuBox(
@@ -145,18 +141,18 @@ fun ClassroomScreen() {
                                 modifier = Modifier.weight(1.4f)
                             ) {
                                 OutlinedTextField(
-                                    value = if (filterType == "ALL") "Tümü" else
-                                        CLASSROOM_TYPES.find { it.first == filterType }?.second ?: filterType,
+                                    value = if (filterType == "ALL") strings.classroomAll else
+                                        classroomTypeLabel(filterType, strings),
                                     onValueChange = {}, readOnly = true,
-                                    label = { Text("Filtre", fontSize = 11.sp) },
+                                    label = { Text(strings.classroomFilter, fontSize = 11.sp) },
                                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = filterExpanded) },
                                     modifier = Modifier.menuAnchor(),
                                     textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                                 )
                                 ExposedDropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
-                                    DropdownMenuItem(text = { Text("Tümü") }, onClick = { filterType = "ALL"; filterExpanded = false })
-                                    CLASSROOM_TYPES.forEach { (code, label) ->
-                                        DropdownMenuItem(text = { Text(label) }, onClick = { filterType = code; filterExpanded = false })
+                                    DropdownMenuItem(text = { Text(strings.classroomAll) }, onClick = { filterType = "ALL"; filterExpanded = false })
+                                    CLASSROOM_TYPE_CODES.forEach { code ->
+                                        DropdownMenuItem(text = { Text(classroomTypeLabel(code, strings)) }, onClick = { filterType = code; filterExpanded = false })
                                     }
                                 }
                             }
@@ -169,13 +165,7 @@ fun ClassroomScreen() {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Icon(Icons.Default.MeetingRoom, null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    Text("Kayıtlı sınıf yok.", color = Color.Gray, fontSize = 15.sp)
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        "+ ile ekleyin veya dosya yükleyin.\nFormat: oda_kodu  kapasite  [tip]",
-                                        color = Color.LightGray, fontSize = 12.sp,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
+                                    Text(strings.classroomNone, color = Color.Gray, fontSize = 15.sp)
                                 }
                             }
                         } else {
@@ -192,37 +182,37 @@ fun ClassroomScreen() {
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { if (!isSubmitting) showAddDialog = false },
-            title = { Text("Yeni Sınıf / Lab Ekle") },
+            title = { Text(strings.classroomAddNew) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = roomCode,
                         onValueChange = { roomCode = it.uppercase() },
-                        label = { Text("Oda Kodu (örn: A101, LAB-3)") },
+                        label = { Text(strings.classroomRoomCode) },
                         modifier = Modifier.fillMaxWidth(), singleLine = true,
                         placeholder = { Text("A101") }
                     )
                     OutlinedTextField(
                         value = capacity,
                         onValueChange = { if (it.all { c -> c.isDigit() }) capacity = it },
-                        label = { Text("Kapasite (kişi)") },
+                        label = { Text(strings.classroomCapacity) },
                         modifier = Modifier.fillMaxWidth(), singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = capacity.isNotBlank() && (capacity.toIntOrNull() ?: 0) < 1
                     )
                     if (capacity.isNotBlank() && (capacity.toIntOrNull() ?: 0) < 1) {
-                        Text("Kapasite en az 1 olmalı.", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                        Text(strings.classroomCapacityMin, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
                     }
                     ExposedDropdownMenuBox(expanded = typeExpanded, onExpandedChange = { typeExpanded = !typeExpanded }) {
                         OutlinedTextField(
-                            value = CLASSROOM_TYPES.find { it.first == selectedType }?.second ?: selectedType,
-                            onValueChange = {}, readOnly = true, label = { Text("Sınıf Tipi") },
+                            value = classroomTypeLabel(selectedType, strings),
+                            onValueChange = {}, readOnly = true, label = { Text(strings.classroomType) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth()
                         )
                         ExposedDropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
-                            CLASSROOM_TYPES.forEach { (code, label) ->
-                                DropdownMenuItem(text = { Text(label) }, onClick = { selectedType = code; typeExpanded = false })
+                            CLASSROOM_TYPE_CODES.forEach { code ->
+                                DropdownMenuItem(text = { Text(classroomTypeLabel(code, strings)) }, onClick = { selectedType = code; typeExpanded = false })
                             }
                         }
                     }
@@ -233,12 +223,12 @@ fun ClassroomScreen() {
                     onClick = {
                         val cap = capacity.toIntOrNull()
                         when {
-                            roomCode.isBlank() -> Toast.makeText(context, "Oda kodu boş olamaz!", Toast.LENGTH_SHORT).show()
-                            cap == null || cap < 1 -> Toast.makeText(context, "Geçerli bir kapasite girin!", Toast.LENGTH_SHORT).show()
+                            roomCode.isBlank() -> Toast.makeText(context, strings.classroomRoomCodeEmpty, Toast.LENGTH_SHORT).show()
+                            cap == null || cap < 1 -> Toast.makeText(context, strings.classroomInvalidCapacity, Toast.LENGTH_SHORT).show()
                             else -> viewModel.create(
                                 roomCode = roomCode, capacity = cap, type = selectedType,
                                 onSuccess = {
-                                    Toast.makeText(context, "Sınıf eklendi.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, strings.classroomAdded, Toast.LENGTH_SHORT).show()
                                     showAddDialog = false
                                     roomCode = ""; capacity = ""; selectedType = "LECTURE"
                                 },
@@ -249,22 +239,37 @@ fun ClassroomScreen() {
                     enabled = !isSubmitting
                 ) {
                     if (isSubmitting) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                    else Text("Ekle")
+                    else Text(strings.add)
                 }
             },
-            dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text("İptal") } }
+            dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text(strings.cancel) } }
         )
     }
 }
 
+private fun classroomTypeLabel(code: String, strings: com.bugra.campussync.utils.AppStrings): String = when (code) {
+    "LECTURE"      -> strings.classroomTypeLecture
+    "LAB"          -> strings.classroomTypeLab
+    "COMPUTER_LAB" -> strings.classroomTypeComputerLab
+    "SEMINAR"      -> strings.classroomTypeSeminar
+    else           -> strings.other
+}
+
 @Composable
 private fun ClassroomSummaryRow(classrooms: List<ClassroomItem>) {
+    val strings = LocalAppStrings.current
     val counts = classrooms.groupBy { it.classroom_type }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        val items = listOf("LECTURE" to "Derslik", "LAB" to "Lab", "COMPUTER_LAB" to "Bil. Lab", "SEMINAR" to "Seminer")
-        items.forEach { (type, label) ->
+        val typeCodes = listOf("LECTURE", "LAB", "COMPUTER_LAB", "SEMINAR")
+        typeCodes.forEach { type ->
             val count = counts[type]?.size ?: 0
             if (count > 0 || type == "LECTURE") {
+                val label = when (type) {
+                    "LECTURE"      -> strings.classroomTypeLecture
+                    "LAB"          -> strings.classroomTypeLab
+                    "COMPUTER_LAB" -> strings.classroomTypeComputerLabShort
+                    else           -> strings.classroomTypeSeminar
+                }
                 Surface(
                     color = classroomTypeColor(type).copy(alpha = 0.12f),
                     shape = MaterialTheme.shapes.small, modifier = Modifier.weight(1f)
@@ -282,10 +287,9 @@ private fun ClassroomSummaryRow(classrooms: List<ClassroomItem>) {
 
 @Composable
 private fun ClassroomCard(room: ClassroomItem) {
+    val strings = LocalAppStrings.current
     val typeColor = classroomTypeColor(room.classroom_type)
-    val typeLabel = room.classroom_type_display
-        ?: CLASSROOM_TYPES.find { it.first == room.classroom_type }?.second
-        ?: room.classroom_type
+    val typeLabel = room.classroom_type_display ?: classroomTypeLabel(room.classroom_type, strings)
 
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -298,7 +302,7 @@ private fun ClassroomCard(room: ClassroomItem) {
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(room.room_code, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                Text("$typeLabel · ${room.capacity} kişi", fontSize = 13.sp, color = Color.Gray)
+                Text("$typeLabel · ${room.capacity} ${strings.people}", fontSize = 13.sp, color = Color.Gray)
             }
             Surface(color = typeColor.copy(alpha = 0.15f), shape = MaterialTheme.shapes.small) {
                 Text(

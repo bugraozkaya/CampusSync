@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bugra.campussync.network.CourseMaterialItem
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.CourseMaterialsViewModel
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -30,9 +31,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 @Composable
 fun CourseMaterialsScreen() {
     val context      = LocalContext.current
+    val strings      = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
     val role         = (tokenManager.getRole() ?: "").uppercase()
-    val canUpload    = role.let { it.contains("LECTURER") || it.contains("ADMIN") || it.contains("SUPER") }
+    val canUpload    = role == "LECTURER"
 
     val viewModel: CourseMaterialsViewModel = viewModel()
     val state by viewModel.state.collectAsState()
@@ -56,11 +58,11 @@ fun CourseMaterialsScreen() {
     var courseExpanded by remember { mutableStateOf(false) }
 
     val MATERIAL_TYPES = listOf(
-        "LECTURE_NOTES" to "Ders Notu",
-        "ASSIGNMENT" to "Ödev",
-        "EXAM" to "Sınav",
-        "RESOURCE" to "Kaynak",
-        "OTHER" to "Diğer"
+        "LECTURE_NOTES" to strings.materialsTypeLectureNotes,
+        "ASSIGNMENT"    to strings.materialsTypeAssignment,
+        "EXAM"          to strings.materialsTypeExam,
+        "RESOURCE"      to strings.materialsTypeResource,
+        "OTHER"         to strings.materialsTypeOther
     )
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -92,33 +94,32 @@ fun CourseMaterialsScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Ders Materyalleri", fontWeight = FontWeight.Bold) },
+                title = { Text(strings.materialsTitle, fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
         floatingActionButton = {
             if (canUpload) {
                 FloatingActionButton(onClick = { showUpload = true }, containerColor = MaterialTheme.colorScheme.primary) {
-                    Icon(Icons.Default.Upload, "Materyal Yükle", tint = Color.White)
+                    Icon(Icons.Default.Upload, strings.materialsUpload, tint = Color.White)
                 }
             }
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // Filter row
             if (courses.isNotEmpty()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     ExposedDropdownMenuBox(expanded = filterExpanded, onExpandedChange = { filterExpanded = !filterExpanded }) {
                         OutlinedTextField(
-                            value = if (filterCourse == null) "Tüm Dersler" else courses.find { it.id == filterCourse }?.course_code ?: "Tüm Dersler",
+                            value = if (filterCourse == null) strings.materialsAllCourses else courses.find { it.id == filterCourse }?.course_code ?: strings.materialsAllCourses,
                             onValueChange = {}, readOnly = true,
-                            label = { Text("Filtre", fontSize = 11.sp) },
+                            label = { Text(strings.classroomFilter, fontSize = 11.sp) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = filterExpanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth(),
                             textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
                         )
                         ExposedDropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
-                            DropdownMenuItem(text = { Text("Tüm Dersler") }, onClick = { filterCourse = null; filterExpanded = false })
+                            DropdownMenuItem(text = { Text(strings.materialsAllCourses) }, onClick = { filterCourse = null; filterExpanded = false })
                             courses.forEach { course ->
                                 DropdownMenuItem(
                                     text = { Text("${course.course_code} – ${course.course_name}") },
@@ -136,7 +137,7 @@ fun CourseMaterialsScreen() {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
                         Spacer(Modifier.height(12.dp))
-                        Text("Materyal bulunamadı.", color = Color.Gray)
+                        Text(strings.materialsNone, color = Color.Gray)
                     }
                 }
                 else -> LazyColumn(
@@ -160,16 +161,16 @@ fun CourseMaterialsScreen() {
                                             val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(mat.file_url))
                                             context.startActivity(intent)
                                         } catch (_: Exception) {
-                                            Toast.makeText(context, "Açılamadı.", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, strings.materialsCannotOpen, Toast.LENGTH_SHORT).show()
                                         }
-                                    }) { Icon(Icons.Default.Download, "İndir", tint = MaterialTheme.colorScheme.primary) }
+                                    }) { Icon(Icons.Default.Download, strings.materialsDownload, tint = MaterialTheme.colorScheme.primary) }
                                 }
                                 if (canUpload) {
                                     IconButton(onClick = {
                                         viewModel.delete(mat.id) {
-                                            Toast.makeText(context, "Silinemedi.", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, strings.materialsDeleteFailed, Toast.LENGTH_SHORT).show()
                                         }
-                                    }) { Icon(Icons.Default.Delete, "Sil", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) }
+                                    }) { Icon(Icons.Default.Delete, strings.delete, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) }
                                 }
                             }
                         }
@@ -179,20 +180,19 @@ fun CourseMaterialsScreen() {
         }
     }
 
-    // Upload Dialog
     if (showUpload) {
         AlertDialog(
             onDismissRequest = { if (!isUploading) showUpload = false },
-            title = { Text("Materyal Yükle") },
+            title = { Text(strings.materialsUpload) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = uploadTitle, onValueChange = { uploadTitle = it }, label = { Text("Başlık") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    OutlinedTextField(value = uploadDesc, onValueChange = { uploadDesc = it }, label = { Text("Açıklama (opsiyonel)") }, modifier = Modifier.fillMaxWidth(), maxLines = 2)
+                    OutlinedTextField(value = uploadTitle, onValueChange = { uploadTitle = it }, label = { Text(strings.materialsHeadline) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(value = uploadDesc, onValueChange = { uploadDesc = it }, label = { Text(strings.materialsDescription) }, modifier = Modifier.fillMaxWidth(), maxLines = 2)
 
                     ExposedDropdownMenuBox(expanded = courseExpanded, onExpandedChange = { courseExpanded = !courseExpanded }) {
                         OutlinedTextField(
-                            value = courses.find { it.id.toString() == uploadCourseId }?.let { "${it.course_code} – ${it.course_name}" } ?: "Ders seçin",
-                            onValueChange = {}, readOnly = true, label = { Text("Ders") },
+                            value = courses.find { it.id.toString() == uploadCourseId }?.let { "${it.course_code} – ${it.course_name}" } ?: strings.materialsSelectCourse,
+                            onValueChange = {}, readOnly = true, label = { Text(strings.courseLabel) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = courseExpanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth()
                         )
@@ -206,7 +206,7 @@ fun CourseMaterialsScreen() {
                     ExposedDropdownMenuBox(expanded = typeExpanded, onExpandedChange = { typeExpanded = !typeExpanded }) {
                         OutlinedTextField(
                             value = MATERIAL_TYPES.find { it.first == uploadType }?.second ?: uploadType,
-                            onValueChange = {}, readOnly = true, label = { Text("Tür") },
+                            onValueChange = {}, readOnly = true, label = { Text(strings.materialsType) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth()
                         )
@@ -220,7 +220,7 @@ fun CourseMaterialsScreen() {
                     OutlinedButton(onClick = { filePicker.launch("*/*") }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(if (uploadFileName.isBlank()) "Dosya Seç" else uploadFileName, maxLines = 1)
+                        Text(if (uploadFileName.isBlank()) strings.materialsFileSelect else uploadFileName, maxLines = 1)
                     }
                 }
             },
@@ -229,7 +229,7 @@ fun CourseMaterialsScreen() {
                     onClick = {
                         val uri = uploadFileUri ?: return@Button
                         if (uploadTitle.isBlank() || uploadCourseId.isBlank()) {
-                            Toast.makeText(context, "Başlık ve ders zorunlu.", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, strings.materialsTitleRequired, Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
@@ -243,9 +243,9 @@ fun CourseMaterialsScreen() {
                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             "text/plain", "application/zip", "application/x-zip-compressed"
                         )
-                        if (mimeType !in allowedMimes) { Toast.makeText(context, "Desteklenmeyen dosya türü.", Toast.LENGTH_SHORT).show(); return@Button }
+                        if (mimeType !in allowedMimes) { Toast.makeText(context, strings.materialsUnsupportedType, Toast.LENGTH_SHORT).show(); return@Button }
                         val fileSize = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
-                        if (fileSize > 50 * 1024 * 1024L) { Toast.makeText(context, "Dosya boyutu 50MB sınırını aşıyor.", Toast.LENGTH_SHORT).show(); return@Button }
+                        if (fileSize > 50 * 1024 * 1024L) { Toast.makeText(context, strings.materialsFileTooLarge, Toast.LENGTH_SHORT).show(); return@Button }
                         val bytes = context.contentResolver.openInputStream(uri)?.readBytes() ?: return@Button
                         val filePart = MultipartBody.Part.createFormData("file", uploadFileName, bytes.toRequestBody(mimeType.toMediaTypeOrNull()))
                         viewModel.upload(
@@ -257,7 +257,7 @@ fun CourseMaterialsScreen() {
                             onSuccess = {
                                 showUpload = false
                                 uploadTitle = ""; uploadDesc = ""; uploadCourseId = ""; uploadFileName = ""; uploadFileUri = null
-                                Toast.makeText(context, "Materyal yüklendi.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, strings.materialsUploaded, Toast.LENGTH_SHORT).show()
                             },
                             onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
                         )
@@ -265,10 +265,10 @@ fun CourseMaterialsScreen() {
                     enabled = !isUploading
                 ) {
                     if (isUploading) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                    else Text("Yükle")
+                    else Text(strings.upload)
                 }
             },
-            dismissButton = { TextButton(onClick = { showUpload = false }) { Text("İptal") } }
+            dismissButton = { TextButton(onClick = { showUpload = false }) { Text(strings.cancel) } }
         )
     }
 }

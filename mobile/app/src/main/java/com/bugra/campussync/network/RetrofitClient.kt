@@ -2,6 +2,7 @@ package com.bugra.campussync.network
 
 import android.content.Context
 import com.bugra.campussync.utils.TokenManager
+import com.google.gson.GsonBuilder
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -28,7 +29,8 @@ object RetrofitClient {
         val authInterceptor = Interceptor { chain ->
             val builder = chain.request().newBuilder()
             authToken?.let { builder.header("Authorization", "Bearer $it") }
-            builder.header("Accept", "application/json")
+            builder.header("Accept", "application/json; charset=utf-8")
+            builder.header("Accept-Charset", "utf-8")
             chain.proceed(builder.build())
         }
 
@@ -45,10 +47,14 @@ object RetrofitClient {
             .authenticator(authenticator)
             .build()
 
+        val gson = GsonBuilder()
+            .disableHtmlEscaping()
+            .create()
+
         _apiService = Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(ApiService::class.java)
     }

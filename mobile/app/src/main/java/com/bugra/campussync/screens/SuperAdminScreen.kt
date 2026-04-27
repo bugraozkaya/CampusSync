@@ -21,13 +21,15 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.viewmodels.SuperAdminViewModel
 
 @Composable
 fun SuperAdminScreen() {
+    val strings = LocalAppStrings.current
     val viewModel: SuperAdminViewModel = viewModel()
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Üniversiteler", "Admin Atama")
+    val tabs = listOf(strings.superAdminInstitutions, strings.superAdminAdminAssign)
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedTab) {
@@ -45,6 +47,7 @@ fun SuperAdminScreen() {
 @Composable
 fun InstitutionManagementTab(viewModel: SuperAdminViewModel) {
     val context = LocalContext.current
+    val strings = LocalAppStrings.current
     val state by viewModel.state.collectAsState()
     val institutions = state.institutions
     val isSubmitting = state.isSubmittingInstitution
@@ -53,23 +56,23 @@ fun InstitutionManagementTab(viewModel: SuperAdminViewModel) {
     var type by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Yeni Üniversite Ekle", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text(strings.superAdminAddInstitution, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Spacer(modifier = Modifier.height(8.dp))
 
-        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Üniversite Adı") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(strings.superAdminInstitutionName) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(value = type, onValueChange = { type = it }, label = { Text("Kurum Tipi (örn: Devlet, Vakıf)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(value = type, onValueChange = { type = it }, label = { Text(strings.superAdminInstitutionType) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
 
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
                 when {
-                    name.isBlank() -> Toast.makeText(context, "Üniversite adı boş olamaz!", Toast.LENGTH_SHORT).show()
-                    type.isBlank() -> Toast.makeText(context, "Kurum tipi boş olamaz!", Toast.LENGTH_SHORT).show()
+                    name.isBlank() -> Toast.makeText(context, strings.superAdminNameEmpty, Toast.LENGTH_SHORT).show()
+                    type.isBlank() -> Toast.makeText(context, strings.superAdminTypeEmpty, Toast.LENGTH_SHORT).show()
                     else -> viewModel.createInstitution(
                         name = name, type = type,
                         onSuccess = {
-                            Toast.makeText(context, "Üniversite eklendi!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, strings.superAdminAdded, Toast.LENGTH_SHORT).show()
                             name = ""; type = ""
                         },
                         onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
@@ -80,16 +83,16 @@ fun InstitutionManagementTab(viewModel: SuperAdminViewModel) {
             enabled = !isSubmitting
         ) {
             if (isSubmitting) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-            else Text("Ekle")
+            else Text(strings.add)
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-        Text("Mevcut Üniversiteler (${institutions.size})", fontWeight = FontWeight.Bold)
+        Text("${strings.superAdminExisting} (${institutions.size})", fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
 
         if (institutions.isEmpty()) {
-            Text("Henüz kayıtlı üniversite yok.", color = androidx.compose.ui.graphics.Color.Gray, fontSize = 13.sp)
+            Text(strings.superAdminNone, color = androidx.compose.ui.graphics.Color.Gray, fontSize = 13.sp)
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(institutions) { inst ->
@@ -109,6 +112,7 @@ fun InstitutionManagementTab(viewModel: SuperAdminViewModel) {
 @Composable
 fun AdminAssignmentTab(viewModel: SuperAdminViewModel) {
     val context = LocalContext.current
+    val strings = LocalAppStrings.current
     val state by viewModel.state.collectAsState()
     val institutions = state.institutions
     val isSubmitting = state.isSubmittingAdmin
@@ -123,13 +127,13 @@ fun AdminAssignmentTab(viewModel: SuperAdminViewModel) {
     val canSubmit = selectedInstId.isNotEmpty() && username.isNotBlank() && password.isNotBlank() && firstName.isNotBlank() && !isSubmitting
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Üniversiteye Admin Ata", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text(strings.superAdminAssignAdmin, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Spacer(modifier = Modifier.height(8.dp))
 
         if (institutions.isEmpty()) {
-            Text("Önce 'Üniversiteler' sekmesinden üniversite ekleyin.", color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+            Text(strings.superAdminAddFirst, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
         } else {
-            Text("Üniversite Seçin:", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(strings.superAdminSelectInstitution, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             Spacer(modifier = Modifier.height(4.dp))
             LazyRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(institutions) { inst ->
@@ -146,14 +150,14 @@ fun AdminAssignmentTab(viewModel: SuperAdminViewModel) {
         Spacer(modifier = Modifier.height(12.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(value = firstName, onValueChange = { firstName = it }, label = { Text("Ad") }, modifier = Modifier.weight(1f), singleLine = true)
-            OutlinedTextField(value = lastName, onValueChange = { lastName = it }, label = { Text("Soyad") }, modifier = Modifier.weight(1f), singleLine = true)
+            OutlinedTextField(value = firstName, onValueChange = { firstName = it }, label = { Text(strings.settingsFirstName) }, modifier = Modifier.weight(1f), singleLine = true)
+            OutlinedTextField(value = lastName, onValueChange = { lastName = it }, label = { Text(strings.settingsLastName) }, modifier = Modifier.weight(1f), singleLine = true)
         }
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("Kullanıcı Adı") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text(strings.loginUsername) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
-            value = password, onValueChange = { password = it }, label = { Text("Şifre") },
+            value = password, onValueChange = { password = it }, label = { Text(strings.loginPassword) },
             modifier = Modifier.fillMaxWidth(), singleLine = true,
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
@@ -171,7 +175,7 @@ fun AdminAssignmentTab(viewModel: SuperAdminViewModel) {
                     institutionId = selectedInstId, username = username,
                     password = password, firstName = firstName, lastName = lastName,
                     onSuccess = {
-                        Toast.makeText(context, "Admin hesabı oluşturuldu!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, strings.superAdminCreated, Toast.LENGTH_SHORT).show()
                         username = ""; password = ""; firstName = ""; lastName = ""
                     },
                     onError = { err -> Toast.makeText(context, err, Toast.LENGTH_LONG).show() }
@@ -183,11 +187,11 @@ fun AdminAssignmentTab(viewModel: SuperAdminViewModel) {
             if (isSubmitting) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Oluşturuluyor...")
+                Text(strings.superAdminCreating)
             } else {
                 Icon(Icons.Default.PersonAdd, null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Admin Hesabı Oluştur")
+                Text(strings.superAdminCreateAdmin)
             }
         }
     }

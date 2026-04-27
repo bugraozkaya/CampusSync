@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bugra.campussync.network.ClassroomItem
 import com.bugra.campussync.network.CourseItem
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.CalendarViewModel
 
@@ -31,9 +32,10 @@ import com.bugra.campussync.viewmodels.CalendarViewModel
 @Composable
 fun CalendarScreen() {
     val context = LocalContext.current
+    val strings = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
     val userRole = tokenManager.getRole() ?: ""
-    val isAdmin = userRole.uppercase().let { it.contains("ADMIN") || it.contains("SUPER") }
+    val isAdmin = userRole.uppercase().let { it.contains("ADMIN") || it.contains("SUPER") || it == "STAFF" || it == "IT" }
 
     val viewModel: CalendarViewModel = viewModel()
     val state by viewModel.state.collectAsState()
@@ -42,7 +44,7 @@ fun CalendarScreen() {
     val isSubmitting = state.isSubmitting
     val lecturers = state.lecturers
     val courses = state.courses
-    val availableClassrooms = state.availableClassrooms
+    var availableClassrooms = state.availableClassrooms
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -64,7 +66,7 @@ fun CalendarScreen() {
     }
 
     val days = listOf("MON", "TUE", "WED", "THU", "FRI")
-    val dayLabels = listOf("Pzt", "Sal", "Çar", "Per", "Cum")
+    val dayLabels = listOf(strings.dayMonAbbr, strings.dayTueAbbr, strings.dayWedAbbr, strings.dayThuAbbr, strings.dayFriAbbr)
     val slots = listOf("08:00-10:00", "10:00-12:00", "13:00-15:00", "15:00-17:00")
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -75,14 +77,13 @@ fun CalendarScreen() {
         ) {
             Column {
                 Text(
-                    text = if (isAdmin) "Haftalık Program Yönetimi" else "Ders Programım",
+                    text = if (isAdmin) strings.calendarTitle else strings.calendarMySchedule,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = if (isAdmin) "Boş slota tıkla → ata | Dolu slota tıkla → düzenle/sil"
-                           else "Size atanmış dersler",
+                    text = if (isAdmin) strings.calendarHint else strings.calendarAssignedCourses,
                     fontSize = 11.sp,
                     color = Color.Gray
                 )
@@ -98,7 +99,7 @@ fun CalendarScreen() {
                 ) {
                     Icon(
                         Icons.Default.AutoAwesome,
-                        contentDescription = "Otomatik Programla",
+                        contentDescription = strings.calendarAutoSchedule,
                         tint = MaterialTheme.colorScheme.secondary
                     )
                 }
@@ -112,7 +113,7 @@ fun CalendarScreen() {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Program yükleniyor...", fontSize = 13.sp, color = Color.Gray)
+                    Text(strings.loading, fontSize = 13.sp, color = Color.Gray)
                 }
             }
         } else {
@@ -284,7 +285,7 @@ fun CalendarScreen() {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "Henüz ders ataması yapılmamış.",
+                            strings.calendarNoAssignments,
                             color = Color.Gray,
                             fontSize = 14.sp,
                             textAlign = TextAlign.Center
@@ -342,7 +343,7 @@ fun CalendarScreen() {
                         ) {
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "Sil",
+                                contentDescription = strings.delete,
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -356,8 +357,8 @@ fun CalendarScreen() {
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Kurs dropdown
-                    Text("Ders", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                    // Course dropdown
+                    Text(strings.calendarSelectCourse, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                     ExposedDropdownMenuBox(
                         expanded = courseExpanded,
                         onExpandedChange = {
@@ -367,7 +368,7 @@ fun CalendarScreen() {
                     ) {
                         val selCourse = courses.find { it.id.toString() == selectedCourseId }
                         OutlinedTextField(
-                            value = selCourse?.let { "${it.course_code} – ${it.course_name}" } ?: "Ders Seçin",
+                            value = selCourse?.let { "${it.course_code} – ${it.course_name}" } ?: strings.calendarSelectCourse,
                             onValueChange = {},
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = courseExpanded) },
@@ -377,7 +378,7 @@ fun CalendarScreen() {
                         ExposedDropdownMenu(expanded = courseExpanded, onDismissRequest = { courseExpanded = false }) {
                             if (courses.isEmpty()) {
                                 DropdownMenuItem(
-                                    text = { Text("Ders bulunamadı — önce Data sekmesinden ekleyin", fontSize = 12.sp, color = Color.Gray) },
+                                    text = { Text(strings.calendarNoCourses, fontSize = 12.sp, color = Color.Gray) },
                                     onClick = {}
                                 )
                             }
@@ -389,7 +390,7 @@ fun CalendarScreen() {
                                                 color = MaterialTheme.colorScheme.primary)
                                             Text(course.course_name, fontSize = 13.sp)
                                             if (course.has_lab) {
-                                                Text("🔬 Lab bileşeni var", fontSize = 11.sp,
+                                                Text("🔬 ${strings.calendarHasLab}", fontSize = 11.sp,
                                                     color = MaterialTheme.colorScheme.tertiary)
                                             }
                                         }
@@ -403,8 +404,8 @@ fun CalendarScreen() {
                         }
                     }
 
-                    // Hoca dropdown
-                    Text("Hoca / Görevli", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                    // Lecturer dropdown
+                    Text(strings.calendarLecturerLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                     ExposedDropdownMenuBox(
                         expanded = lecturerExpanded,
                         onExpandedChange = {
@@ -417,7 +418,7 @@ fun CalendarScreen() {
                             val title = it["title"]?.toString()?.trim() ?: ""
                             val name = "${it["first_name"] ?: ""} ${it["last_name"] ?: ""}".trim()
                             if (title.isNotEmpty()) "$title $name" else name
-                        } ?: "Hoca Seçin"
+                        } ?: strings.calendarSelectLecturer
                         OutlinedTextField(
                             value = lecText,
                             onValueChange = {},
@@ -429,7 +430,7 @@ fun CalendarScreen() {
                         ExposedDropdownMenu(expanded = lecturerExpanded, onDismissRequest = { lecturerExpanded = false }) {
                             if (lecturers.isEmpty()) {
                                 DropdownMenuItem(
-                                    text = { Text("Hoca bulunamadı", fontSize = 12.sp, color = Color.Gray) },
+                                    text = { Text(strings.calendarNoLecturers, fontSize = 12.sp, color = Color.Gray) },
                                     onClick = {}
                                 )
                             }
@@ -455,23 +456,23 @@ fun CalendarScreen() {
                     // Session type selector (only shown when the selected course has a lab)
                     val selectedCourse = courses.find { it.id.toString() == selectedCourseId }
                     if (selectedCourse?.has_lab == true) {
-                        Text("Oturum Türü", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                        Text(strings.calendarSessionType, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(
                                 selected = sessionType == "LECTURE",
                                 onClick = { sessionType = "LECTURE" },
-                                label = { Text("Teorik") }
+                                label = { Text(strings.calendarLecture) }
                             )
                             FilterChip(
                                 selected = sessionType == "LAB",
                                 onClick = { sessionType = "LAB" },
-                                label = { Text("Lab") }
+                                label = { Text(strings.calendarLab) }
                             )
                         }
                     }
 
-                    // Sınıf dropdown (available classrooms for the selected slot/course/session)
-                    Text("Derslik / Laboratuvar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                    // Classroom dropdown
+                    Text(strings.calendarClassroomLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                     ExposedDropdownMenuBox(
                         expanded = classroomExpanded,
                         onExpandedChange = {
@@ -483,12 +484,12 @@ fun CalendarScreen() {
                             value = selectedClassroomName,
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Sınıf") },
+                            label = { Text(strings.calendarClassroomLabel) },
                             placeholder = {
                                 Text(
-                                    if (selectedCourseId.isBlank() || selectedSlotName.isBlank()) "Önce ders/saat seçin"
-                                    else if (availableClassrooms.isEmpty()) "Müsait sınıf yok"
-                                    else "Sınıf seçin"
+                                    if (selectedCourseId.isBlank() || selectedSlotName.isBlank()) strings.calendarSelectSlotFirst
+                                    else if (availableClassrooms.isEmpty()) strings.calendarNoRooms
+                                    else strings.calendarSelectRoom
                                 )
                             },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = classroomExpanded) },
@@ -504,8 +505,8 @@ fun CalendarScreen() {
                                     text = {
                                         Text(
                                             if (selectedCourseId.isBlank() || selectedSlotName.isBlank())
-                                                "Önce ders ve saat seçin"
-                                            else "Müsait sınıf yok",
+                                                strings.calendarSelectSlotFirst
+                                            else strings.calendarNoRooms,
                                             fontSize = 12.sp,
                                             color = Color.Gray
                                         )
@@ -519,7 +520,7 @@ fun CalendarScreen() {
                                             Column {
                                                 Text(room.room_code, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                                                 val typeLabel = room.classroom_type_display ?: room.classroom_type
-                                                Text("$typeLabel · ${room.capacity} kişi",
+                                                Text("$typeLabel · ${room.capacity} ${strings.people}",
                                                     fontSize = 11.sp, color = Color.Gray)
                                             }
                                         },
@@ -539,15 +540,15 @@ fun CalendarScreen() {
                 Button(
                     onClick = {
                         if (selectedCourseId.isBlank()) {
-                            Toast.makeText(context, "Lütfen ders seçin!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, strings.calendarPleaseSelectCourse, Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         if (selectedLecturerId.isBlank()) {
-                            Toast.makeText(context, "Lütfen hoca seçin!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, strings.calendarPleaseSelectLecturer, Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         if (selectedClassroomId.isBlank()) {
-                            Toast.makeText(context, "Lütfen sınıf seçin!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, strings.calendarPleaseSelectRoom, Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         val (st, et) = slotToTimes(selectedSlotName)
@@ -561,7 +562,7 @@ fun CalendarScreen() {
                             sessionType = sessionType,
                             existingId = selectedScheduleId,
                             onSuccess = {
-                                Toast.makeText(context, "Atama kaydedildi.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, strings.calendarAssignmentSaved, Toast.LENGTH_SHORT).show()
                                 showAddDialog = false
                                 sessionType = "LECTURE"
                                 viewModel.clearAvailableClassrooms()
@@ -579,7 +580,7 @@ fun CalendarScreen() {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp,
                             color = MaterialTheme.colorScheme.onPrimary)
                     } else {
-                        Text(if (selectedScheduleId != null) "Güncelle" else "Kaydet")
+                        Text(if (selectedScheduleId != null) strings.update else strings.save)
                     }
                 }
             },
@@ -594,18 +595,18 @@ fun CalendarScreen() {
                     },
                     enabled = !isSubmitting
                 ) {
-                    Text("İptal")
+                    Text(strings.cancel)
                 }
             }
         )
     }
 
-    // Silme onay dialog'u
+    // Delete confirm dialog
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Atamayı Sil") },
-            text = { Text("Bu ders atamasını silmek istediğinize emin misiniz?") },
+            title = { Text(strings.calendarDeleteAssignment) },
+            text = { Text(strings.calendarDeleteConfirm) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -614,16 +615,16 @@ fun CalendarScreen() {
                         selectedScheduleId?.let { id ->
                             viewModel.deleteSchedule(
                                 id = id,
-                                onSuccess = { Toast.makeText(context, "Atama silindi.", Toast.LENGTH_SHORT).show() },
+                                onSuccess = { Toast.makeText(context, strings.calendarAssignmentDeleted, Toast.LENGTH_SHORT).show() },
                                 onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
                             )
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Sil") }
+                ) { Text(strings.delete) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Vazgeç") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(strings.cancel) }
             }
         )
     }

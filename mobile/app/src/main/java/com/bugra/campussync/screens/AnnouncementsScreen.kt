@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
@@ -18,7 +20,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.bugra.campussync.network.AnnouncementItem
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.AnnouncementsViewModel
 
@@ -26,9 +31,10 @@ import com.bugra.campussync.viewmodels.AnnouncementsViewModel
 @Composable
 fun AnnouncementsScreen() {
     val context = LocalContext.current
+    val strings = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
     val role = tokenManager.getRole() ?: ""
-    val canCreate = role.uppercase().let { it.contains("ADMIN") || it.contains("SUPER") }
+    val canCreate = role.uppercase().let { it.contains("ADMIN") || it.contains("SUPER") || it == "STAFF" || it == "IT" }
 
     val viewModel: AnnouncementsViewModel = viewModel()
     val state by viewModel.state.collectAsState()
@@ -41,11 +47,11 @@ fun AnnouncementsScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Duyurular", fontWeight = FontWeight.Bold) },
+                title = { Text(strings.announcementsTitle, fontWeight = FontWeight.Bold) },
                 actions = {
                     if (announcements.any { it.id !in readIds }) {
                         TextButton(onClick = { viewModel.markAllRead() }) {
-                            Text("Tümünü Okundu İşaretle")
+                            Text(strings.announcementsMarkAllRead)
                         }
                     }
                 },
@@ -58,7 +64,7 @@ fun AnnouncementsScreen() {
                     onClick = { showCreateDialog = true },
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
-                    Icon(Icons.Default.Add, "Duyuru Ekle", tint = Color.White)
+                    Icon(Icons.Default.Add, strings.announcementsAdd, tint = Color.White)
                 }
             }
         }
@@ -73,7 +79,7 @@ fun AnnouncementsScreen() {
                         Icon(Icons.Default.NotificationsNone, null,
                             modifier = Modifier.size(64.dp), tint = Color.LightGray)
                         Spacer(Modifier.height(12.dp))
-                        Text("Duyuru yok.", color = Color.Gray)
+                        Text(strings.announcementsNone, color = Color.Gray)
                     }
                 }
                 else -> LazyColumn(
@@ -101,10 +107,10 @@ fun AnnouncementsScreen() {
                     title, body, audience,
                     onSuccess = {
                         showCreateDialog = false
-                        Toast.makeText(context, "Duyuru yayınlandı.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, strings.announcementsPublished, Toast.LENGTH_SHORT).show()
                     },
                     onError = { err ->
-                        Toast.makeText(context, "Hata: $err", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "${strings.error}: $err", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -176,31 +182,55 @@ private fun CreateAnnouncementDialog(
     var audience by remember { mutableStateOf("ALL") }
     var audienceExpanded by remember { mutableStateOf(false) }
 
+    val strings = LocalAppStrings.current
     val audienceOptions = listOf(
-        "ALL" to "Tüm Kullanıcılar",
-        "LECTURER" to "Öğretim Üyeleri",
-        "STUDENT" to "Öğrenciler",
-        "ADMIN" to "Yöneticiler"
+        "ALL" to strings.announcementsAllUsers,
+        "LECTURER" to strings.announcementsLecturers,
+        "STUDENT" to strings.announcementsStudents,
+        "ADMIN" to strings.announcementsAdmins
     )
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text("Yeni Duyuru") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .wrapContentHeight()
+                .imePadding(),
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = AlertDialogDefaults.TonalElevation,
+            color = AlertDialogDefaults.containerColor
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    strings.announcementsNew,
+                    style = MaterialTheme.typography.headlineSmall
+                )
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Başlık") },
+                    label = { Text(strings.announcementsHeadline) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
                 OutlinedTextField(
                     value = body,
                     onValueChange = { body = it },
-                    label = { Text("İçerik") },
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
-                    maxLines = 4
+                    label = { Text(strings.announcementsContent) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    maxLines = 5
                 )
                 ExposedDropdownMenuBox(
                     expanded = audienceExpanded,
@@ -210,7 +240,7 @@ private fun CreateAnnouncementDialog(
                         value = audienceOptions.find { it.first == audience }?.second ?: audience,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Hedef Kitle") },
+                        label = { Text(strings.announcementsAudience) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = audienceExpanded) },
                         modifier = Modifier.menuAnchor().fillMaxWidth()
                     )
@@ -226,14 +256,19 @@ private fun CreateAnnouncementDialog(
                         }
                     }
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) { Text(strings.cancel) }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = { if (title.isNotBlank() && body.isNotBlank()) onCreate(title, body, audience) },
+                        enabled = title.isNotBlank() && body.isNotBlank()
+                    ) { Text(strings.announcementsPublish) }
+                }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = { if (title.isNotBlank() && body.isNotBlank()) onCreate(title, body, audience) },
-                enabled = title.isNotBlank() && body.isNotBlank()
-            ) { Text("Yayınla") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("İptal") } }
-    )
+        }
+    }
 }

@@ -23,15 +23,17 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bugra.campussync.network.RetrofitClient
 import com.bugra.campussync.network.ScheduleItem
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.HomeViewModel
 
 @Composable
 fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
     val context = LocalContext.current
+    val strings = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
     val userRole = tokenManager.getRole() ?: ""
-    val isAdmin = userRole.uppercase().let { it.contains("ADMIN") || it.contains("SUPER") }
+    val isAdmin = userRole.uppercase().let { it.contains("ADMIN") || it.contains("SUPER") || it == "STAFF" || it == "IT" }
 
     val firstName = tokenManager.getFirstName()
     val lastName = tokenManager.getLastName()
@@ -48,7 +50,7 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
         else -> tokenManager.getUsername() ?: ""
     }
 
-    var showProfileDialog by remember { mutableStateOf(!isProfileComplete) }
+    var showProfileDialog by remember { mutableStateOf(!isAdmin && !isProfileComplete) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
 
     val viewModel: HomeViewModel = viewModel()
@@ -69,7 +71,7 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Hoşgeldiniz${if (displayName.isNotEmpty()) ", $displayName" else ""}",
+                    text = "${strings.homeWelcome}${if (displayName.isNotEmpty()) ", $displayName" else ""}",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -89,7 +91,7 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
             IconButton(onClick = { showLogoutConfirm = true }) {
                 Icon(
                     Icons.Default.Logout,
-                    contentDescription = "Çıkış Yap",
+                    contentDescription = strings.logout,
                     tint = MaterialTheme.colorScheme.error
                 )
             }
@@ -102,26 +104,26 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
             AlertDialog(
                 onDismissRequest = { },
                 icon = { Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.error) },
-                title = { Text("Profil Eksik") },
-                text = { Text("Uygulamayı kullanmadan önce lütfen Ayarlar bölümünden departman ve pozisyon bilgilerinizi tamamlayın.") },
+                title = { Text(strings.homeProfileIncomplete) },
+                text = { Text(strings.homeProfileDialog) },
                 confirmButton = {
                     Button(onClick = {
                         showProfileDialog = false
                         onNavigateToSettings()
-                    }) { Text("Ayarlar'a Git") }
+                    }) { Text(strings.homeGoToSettings) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showProfileDialog = false }) { Text("Sonra") }
+                    TextButton(onClick = { showProfileDialog = false }) { Text(strings.homeLater) }
                 }
             )
         }
 
-        // Çıkış onay dialog'u
+        // Logout confirm dialog
         if (showLogoutConfirm) {
             AlertDialog(
                 onDismissRequest = { showLogoutConfirm = false },
-                title = { Text("Çıkış Yap") },
-                text = { Text("Hesabınızdan çıkmak istediğinize emin misiniz?") },
+                title = { Text(strings.logout) },
+                text = { Text(strings.homeLogoutConfirm) },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -130,10 +132,10 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
                             onLogoutClick()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Çıkış Yap") }
+                    ) { Text(strings.logout) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showLogoutConfirm = false }) { Text("İptal") }
+                    TextButton(onClick = { showLogoutConfirm = false }) { Text(strings.cancel) }
                 }
             )
         }
@@ -144,7 +146,7 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Yükleniyor...", fontSize = 13.sp, color = Color.Gray)
+                    Text(strings.loading, fontSize = 13.sp, color = Color.Gray)
                 }
             }
         } else if (state.error != null) {
@@ -162,7 +164,7 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
                     Button(onClick = { viewModel.load(isAdmin) }) {
                         Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Tekrar Dene")
+                        Text(strings.retry)
                     }
                 }
             }
@@ -201,6 +203,7 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
 
 @Composable
 fun ScheduleCard(schedule: ScheduleItem) {
+    val strings = LocalAppStrings.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -240,7 +243,7 @@ fun ScheduleCard(schedule: ScheduleItem) {
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "${dayTurkish(schedule.day)} | ${schedule.start_time} – ${schedule.end_time}",
+                    text = "${dayLocalName(schedule.day, strings)} | ${schedule.start_time} – ${schedule.end_time}",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.secondary
                 )
@@ -255,7 +258,7 @@ fun ScheduleCard(schedule: ScheduleItem) {
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Sınıf: ${schedule.classroom_name ?: "Henüz atanmamış"}",
+                    text = "${strings.homeClassroom}: ${schedule.classroom_name ?: strings.homeNotAssigned}",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -264,25 +267,27 @@ fun ScheduleCard(schedule: ScheduleItem) {
     }
 }
 
-private fun dayTurkish(day: String): String = when (normalizeDayOfWeek(day)) {
-    "MON" -> "Pazartesi"
-    "TUE" -> "Salı"
-    "WED" -> "Çarşamba"
-    "THU" -> "Perşembe"
-    "FRI" -> "Cuma"
-    else  -> day
-}
+private fun dayLocalName(day: String, strings: com.bugra.campussync.utils.AppStrings): String =
+    when (normalizeDayOfWeek(day)) {
+        "MON" -> strings.dayMonday
+        "TUE" -> strings.dayTuesday
+        "WED" -> strings.dayWednesday
+        "THU" -> strings.dayThursday
+        "FRI" -> strings.dayFriday
+        else  -> day
+    }
 
 @Composable
 fun AdminSummaryView(summary: Map<String, Any>) {
+    val strings = LocalAppStrings.current
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         item {
-            Text("Admin Özet Paneli", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(strings.homeSummaryPanel, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
         }
         item {
             SummaryCard(
-                "Atanmamış Hocalar",
+                strings.homeUnassignedLecturers,
                 summary["unassigned_lecturers"] as? List<Map<String, Any>> ?: emptyList(),
                 nameKey = "username"
             )
@@ -290,7 +295,7 @@ fun AdminSummaryView(summary: Map<String, Any>) {
         }
         item {
             SummaryCard(
-                "Atanmamış Dersler",
+                strings.homeUnassignedCourses,
                 summary["unassigned_courses"] as? List<Map<String, Any>> ?: emptyList(),
                 nameKey = "name"
             )
@@ -298,7 +303,7 @@ fun AdminSummaryView(summary: Map<String, Any>) {
         }
         item {
             SummaryCard(
-                "Müsait Sınıflar",
+                strings.homeAvailableClassrooms,
                 summary["available_classrooms"] as? List<Map<String, Any>> ?: emptyList(),
                 nameKey = "room_code"
             )
@@ -308,6 +313,7 @@ fun AdminSummaryView(summary: Map<String, Any>) {
 
 @Composable
 fun SummaryCard(title: String, items: List<Map<String, Any>>, nameKey: String = "name") {
+    val strings = LocalAppStrings.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -328,7 +334,7 @@ fun SummaryCard(title: String, items: List<Map<String, Any>>, nameKey: String = 
             }
             Spacer(modifier = Modifier.height(8.dp))
             if (items.isEmpty()) {
-                Text("Tümü atanmış durumda.", fontSize = 13.sp, color = Color.Gray)
+                Text(strings.homeAllAssigned, fontSize = 13.sp, color = Color.Gray)
             } else {
                 items.take(5).forEach { item ->
                     val display = item[nameKey]?.toString()
@@ -339,7 +345,7 @@ fun SummaryCard(title: String, items: List<Map<String, Any>>, nameKey: String = 
                     Text("• $display", fontSize = 13.sp, modifier = Modifier.padding(vertical = 1.dp))
                 }
                 if (items.size > 5) {
-                    Text("...ve ${items.size - 5} tane daha", fontSize = 11.sp, color = Color.Gray)
+                    Text(strings.homeAndMore.format(items.size - 5), fontSize = 11.sp, color = Color.Gray)
                 }
             }
         }
@@ -348,6 +354,7 @@ fun SummaryCard(title: String, items: List<Map<String, Any>>, nameKey: String = 
 
 @Composable
 fun LecturerHomeView(schedules: List<ScheduleItem>) {
+    val strings = LocalAppStrings.current
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -355,25 +362,16 @@ fun LecturerHomeView(schedules: List<ScheduleItem>) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Haftalık Ders Programınız",
+                text = strings.homeWeeklySchedule,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold
             )
             if (schedules.isNotEmpty()) {
                 Badge(containerColor = MaterialTheme.colorScheme.primary) {
-                    Text("${schedules.size} ders", modifier = Modifier.padding(horizontal = 4.dp))
+                    Text("${schedules.size} ${strings.homeCourse}", modifier = Modifier.padding(horizontal = 4.dp))
                 }
             }
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        if (schedules.isNotEmpty()) {
-            Text(
-                text = "Bu hafta toplam ${schedules.size} dersiniz var.",
-                fontSize = 13.sp,
-                color = Color.Gray
-            )
-        }
-
         Spacer(modifier = Modifier.height(12.dp))
 
         if (schedules.isEmpty()) {
@@ -390,7 +388,7 @@ fun LecturerHomeView(schedules: List<ScheduleItem>) {
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Henüz atanmış dersiniz bulunmuyor.",
+                        text = strings.homeNoAssignedCourses,
                         color = Color.Gray,
                         fontSize = 14.sp
                     )

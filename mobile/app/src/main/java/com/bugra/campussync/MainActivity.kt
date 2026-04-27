@@ -15,13 +15,18 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.runtime.CompositionLocalProvider
 import com.bugra.campussync.network.RetrofitClient
 import com.bugra.campussync.network.SessionManager
 import com.bugra.campussync.screens.*
 import com.bugra.campussync.ui.theme.CampusSyncTheme
 import com.bugra.campussync.ui.theme.ThemeMode
+import com.bugra.campussync.utils.AppStrings
+import com.bugra.campussync.utils.EnglishStrings
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.ThemePreferences
 import com.bugra.campussync.utils.TokenManager
+import com.bugra.campussync.utils.TurkishStrings
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,13 +35,17 @@ class MainActivity : ComponentActivity() {
             val context = LocalContext.current
             val themePreferences = remember { ThemePreferences(context) }
             val themeMode by themePreferences.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+            val languageCode by themePreferences.languageCode.collectAsState(initial = "tr")
+            val strings: AppStrings = if (languageCode == "en") EnglishStrings else TurkishStrings
 
-            CampusSyncTheme(themeMode = themeMode) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    AppNavigation(themePreferences = themePreferences)
+            CompositionLocalProvider(LocalAppStrings provides strings) {
+                CampusSyncTheme(themeMode = themeMode) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        AppNavigation(themePreferences = themePreferences)
+                    }
                 }
             }
         }
@@ -64,19 +73,7 @@ fun AppNavigation(themePreferences: ThemePreferences? = null) {
         }
     }
 
-    // Kayıtlı dili uygulama başlangıcında ve değişimde uygula
-    val languageCode by (themePreferences?.languageCode
-        ?: kotlinx.coroutines.flow.flowOf("tr"))
-        .collectAsState(initial = "tr")
-
-    LaunchedEffect(languageCode) {
-        val locale = java.util.Locale(languageCode)
-        java.util.Locale.setDefault(locale)
-        val config = android.content.res.Configuration()
-        config.setLocale(locale)
-        @Suppress("DEPRECATION")
-        context.resources.updateConfiguration(config, context.resources.displayMetrics)
-    }
+    val strings = LocalAppStrings.current
 
     // Rolü dinamik state olarak tut
     var userRole by remember { mutableStateOf(tokenManager.getRole() ?: "") }
@@ -95,6 +92,7 @@ fun AppNavigation(themePreferences: ThemePreferences? = null) {
             tokenManager.getToken() == null -> "onboarding"
             tokenManager.getMustChangePassword() -> "change_password"
             (tokenManager.getRole() ?: "").uppercase() == "STUDENT" -> "student_home"
+            (tokenManager.getRole() ?: "").uppercase().contains("SUPER") -> "superadmin"
             else -> "home"
         }
     }
@@ -104,9 +102,9 @@ fun AppNavigation(themePreferences: ThemePreferences? = null) {
         val role = userRole.uppercase()
         when {
             role.contains("SUPER") ->
-                listOf("home", "calendar", "users", "superadmin", "announcements", "attendance", "chat_inbox", "materials", "settings")
+                listOf("superadmin", "users", "settings")
             role.contains("ADMIN") || role.contains("STAFF") || role.contains("IT") ->
-                listOf("home", "calendar", "classrooms", "data", "announcements", "attendance", "chat_inbox", "materials", "settings")
+                listOf("home", "calendar", "classrooms", "data", "announcements", "chat_inbox", "settings")
             role == "LECTURER" ->
                 listOf("home", "calendar", "availability", "announcements", "attendance", "chat_inbox", "materials", "grades", "settings")
             role == "STUDENT" ->
@@ -151,20 +149,20 @@ fun AppNavigation(themePreferences: ThemePreferences? = null) {
                             label = {
                                 Text(
                                     when (screen) {
-                                        "home"         -> "Ana Sayfa"
-                                        "calendar"     -> "Takvim"
-                                        "classrooms"   -> "Sınıflar"
-                                        "data"         -> "Hocalar"
-                                        "settings"     -> "Ayarlar"
-                                        "availability" -> "Müsaitlik"
-                                        "users"        -> "Kullanıcılar"
-                                        "superadmin"   -> "Yönetim"
-                                        "student_home" -> "Ana Sayfa"
-                                        "announcements" -> "Duyurular"
-                                        "attendance" -> "Yoklama"
-                                        "chat_inbox" -> "Mesajlar"
-                                        "materials"  -> "Materyaller"
-                                        "grades"     -> "Notlar"
+                                        "home"          -> strings.navHome
+                                        "calendar"      -> strings.navCalendar
+                                        "classrooms"    -> strings.navClassrooms
+                                        "data"          -> strings.navLecturers
+                                        "settings"      -> strings.navSettings
+                                        "availability"  -> strings.navAvailability
+                                        "users"         -> strings.navUsers
+                                        "superadmin"    -> strings.navManagement
+                                        "student_home"  -> strings.navHome
+                                        "announcements" -> strings.navAnnouncements
+                                        "attendance"    -> strings.navAttendance
+                                        "chat_inbox"    -> strings.navMessages
+                                        "materials"     -> strings.navMaterials
+                                        "grades"        -> strings.navGrades
                                         else -> screen.replaceFirstChar { it.uppercase() }
                                     }
                                 )
@@ -210,6 +208,10 @@ fun AppNavigation(themePreferences: ThemePreferences? = null) {
                         navController.navigate("student_home") {
                             popUpTo(0) { inclusive = true }
                         }
+                    } else if (userRole.uppercase().contains("SUPER")) {
+                        navController.navigate("superadmin") {
+                            popUpTo(0) { inclusive = true }
+                        }
                     } else {
                         navController.navigate("home") {
                             popUpTo(0) { inclusive = true }
@@ -219,12 +221,22 @@ fun AppNavigation(themePreferences: ThemePreferences? = null) {
             }
 
             composable("change_password") {
-                ChangePasswordScreen(onPasswordChanged = {
-                    val dest = if ((tokenManager.getRole() ?: "").uppercase() == "STUDENT") "student_home" else "home"
-                    navController.navigate(dest) {
-                        popUpTo(0) { inclusive = true }
+                ChangePasswordScreen(
+                    onPasswordChanged = {
+                        val dest = if ((tokenManager.getRole() ?: "").uppercase() == "STUDENT") "student_home" else "home"
+                        navController.navigate(dest) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onLogout = {
+                        tokenManager.clearAll()
+                        RetrofitClient.authToken = null
+                        userRole = ""
+                        navController.navigate("auth") {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
-                })
+                )
             }
 
             composable("home") {

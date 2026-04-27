@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 data class AvailabilityUiState(
     val isLoading: Boolean = true,
@@ -29,8 +30,8 @@ class AvailabilityViewModel : ViewModel() {
             try {
                 val response = RetrofitClient.apiService.getUnavailability()
                 val loaded = response.mapNotNull { item ->
-                    val day = item["day"]?.toString()?.takeIf { it.isNotBlank() && it != "null" }
-                    val hour = item["hour"]?.toString()?.takeIf { it.isNotBlank() && it != "null" }
+                    val day = item["day"]?.takeIf { it.isNotBlank() && it != "null" }
+                    val hour = item["hour"]?.takeIf { it.isNotBlank() && it != "null" }
                     if (day != null && hour != null) "$day-$hour" else null
                 }.toSet()
                 _state.update { it.copy(isLoading = false, busySlots = loaded) }
@@ -51,16 +52,17 @@ class AvailabilityViewModel : ViewModel() {
         viewModelScope.launch {
             _state.update { it.copy(isSaving = true) }
             try {
-                val dataToSend = _state.value.busySlots.mapNotNull { slot ->
+                val dataToSend = _state.value.busySlots.map { slot ->
                     val dashIdx = slot.indexOf('-')
-                    if (dashIdx <= 0) return@mapNotNull null
-                    val day = slot.substring(0, dashIdx)
-                    val hour = slot.substring(dashIdx + 1)
-                    if (day.isBlank() || hour.isBlank()) return@mapNotNull null
-                    mapOf("day" to day, "hour" to hour)
+                    mapOf(
+                        "day" to slot.substring(0, dashIdx),
+                        "hour" to slot.substring(dashIdx + 1)
+                    )
                 }
                 RetrofitClient.apiService.syncUnavailability(dataToSend)
                 onSuccess()
+            } catch (e: HttpException) {
+                onError("Sunucu hatası ${e.code()}: ${e.message()}")
             } catch (e: Exception) {
                 onError("Kayıt hatası: ${e.localizedMessage}")
             } finally {

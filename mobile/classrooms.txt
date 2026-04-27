@@ -1,0 +1,10 @@
+room_code	capacity	department
+A101	50	Computer Engineering
+A102	45	Computer Engineering
+B201	30	Electrical Engineering
+B204	35	Electrical Engineering
+C105	60	Mechanical Engineering
+LAB-1	25	IT Department
+LAB-2	20	IT Department
+D301	40	Aeronautical Engineering
+D302	40	Aeronautical Engineering

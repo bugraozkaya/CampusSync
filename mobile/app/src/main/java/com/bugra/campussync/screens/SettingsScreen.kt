@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bugra.campussync.network.RetrofitClient
 import com.bugra.campussync.ui.theme.ThemeMode
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.ThemePreferences
 import com.bugra.campussync.utils.TokenManager
 import kotlinx.coroutines.launch
@@ -37,6 +38,8 @@ fun SettingsScreen(
     val tokenManager = remember { TokenManager(context) }
     val scope = rememberCoroutineScope()
 
+    val strings = LocalAppStrings.current
+
     val themeMode by (themePreferences?.themeMode
         ?: kotlinx.coroutines.flow.flowOf(ThemeMode.SYSTEM))
         .collectAsState(initial = ThemeMode.SYSTEM)
@@ -47,6 +50,9 @@ fun SettingsScreen(
 
     val role     = tokenManager.getRole()     ?: ""
     val username = tokenManager.getUsername() ?: ""
+    val canEditProfile = role.uppercase().let {
+        it != "ADMIN" && it != "SUPERADMIN" && it != "STAFF" && it != "IT"
+    }
 
     var editMode    by remember { mutableStateOf(false) }
     var firstName   by remember { mutableStateOf(tokenManager.getFirstName() ?: "") }
@@ -66,9 +72,9 @@ fun SettingsScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Ayarlar", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(strings.settingsTitle, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             IconButton(onClick = onLogoutClick) {
-                Icon(Icons.Default.Logout, contentDescription = "Çıkış Yap", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Default.Logout, contentDescription = strings.logout, tint = MaterialTheme.colorScheme.error)
             }
         }
 
@@ -81,13 +87,13 @@ fun SettingsScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = if (!editMode && (firstName.isNotBlank() || lastName.isNotBlank()))
-                            "$firstName $lastName".trim() else if (!editMode) username else "Profili Düzenle",
+                            "$firstName $lastName".trim() else if (!editMode) username else strings.settingsEditProfile,
                         fontSize = 18.sp, fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                    if (!editMode) {
+                    if (!editMode && canEditProfile) {
                         IconButton(onClick = { editMode = true }) {
-                            Icon(Icons.Default.Edit, "Düzenle", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Icon(Icons.Default.Edit, strings.edit, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
                     }
                 }
@@ -98,12 +104,12 @@ fun SettingsScreen(
                     }
                     if (role.isNotBlank()) {
                         val roleLabel = when (role.uppercase()) {
-                            "SUPERADMIN" -> "Süper Admin"
-                            "ADMIN"      -> "Kurum Yöneticisi"
-                            "LECTURER"   -> "Öğretim Üyesi"
-                            "STAFF"      -> "Personel"
-                            "IT"         -> "IT Personeli"
-                            "STUDENT"    -> "Öğrenci"
+                            "SUPERADMIN" -> strings.roleSuperAdmin
+                            "ADMIN"      -> strings.roleAdmin
+                            "LECTURER"   -> strings.roleLecturer
+                            "STAFF"      -> strings.roleStaff
+                            "IT"         -> strings.roleIT
+                            "STUDENT"    -> strings.roleStudent
                             else -> role
                         }
                         Surface(
@@ -117,11 +123,11 @@ fun SettingsScreen(
                             )
                         }
                     }
-                } else {
+                } else if (canEditProfile) {
                     OutlinedTextField(
                         value = firstName,
                         onValueChange = { firstName = it },
-                        label = { Text("Ad") },
+                        label = { Text(strings.settingsFirstName) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -132,7 +138,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = lastName,
                         onValueChange = { lastName = it },
-                        label = { Text("Soyad") },
+                        label = { Text(strings.settingsLastName) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -148,11 +154,11 @@ fun SettingsScreen(
                                 editMode = false
                             },
                             modifier = Modifier.weight(1f)
-                        ) { Text("İptal") }
+                        ) { Text(strings.cancel) }
                         Button(
                             onClick = {
                                 if (firstName.isBlank() && lastName.isBlank()) {
-                                    Toast.makeText(context, "Ad veya soyad boş olamaz.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, strings.settingsNameEmpty, Toast.LENGTH_SHORT).show()
                                     return@Button
                                 }
                                 isSaving = true
@@ -163,10 +169,10 @@ fun SettingsScreen(
                                         )
                                         tokenManager.saveUserInfo(firstName, lastName)
                                         editMode = false
-                                        Toast.makeText(context, "Profil güncellendi.", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, strings.settingsProfileUpdated, Toast.LENGTH_SHORT).show()
                                         onProfileSaved()
                                     } catch (e: Exception) {
-                                        Toast.makeText(context, "Güncellenemedi: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "${strings.settingsUpdateFailed}: ${e.message}", Toast.LENGTH_SHORT).show()
                                     } finally {
                                         isSaving = false
                                     }
@@ -179,7 +185,7 @@ fun SettingsScreen(
                             else {
                                 Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Kaydet")
+                                Text(strings.save)
                             }
                         }
                     }
@@ -194,7 +200,7 @@ fun SettingsScreen(
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Görünüm", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(strings.settingsAppearance, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     SegmentedButton(
@@ -202,21 +208,21 @@ fun SettingsScreen(
                         selected = themeMode == ThemeMode.LIGHT,
                         onClick = { scope.launch { themePreferences?.setThemeMode(ThemeMode.LIGHT) } },
                         icon = { Icon(Icons.Default.LightMode, null, modifier = Modifier.size(16.dp)) }
-                    ) { Text("Açık", fontSize = 13.sp) }
+                    ) { Text(strings.settingsThemeLight, fontSize = 13.sp) }
 
                     SegmentedButton(
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
                         selected = themeMode == ThemeMode.SYSTEM,
                         onClick = { scope.launch { themePreferences?.setThemeMode(ThemeMode.SYSTEM) } },
                         icon = { Icon(Icons.Default.SettingsBrightness, null, modifier = Modifier.size(16.dp)) }
-                    ) { Text("Sistem", fontSize = 13.sp) }
+                    ) { Text(strings.settingsThemeSystem, fontSize = 13.sp) }
 
                     SegmentedButton(
                         shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
                         selected = themeMode == ThemeMode.DARK,
                         onClick = { scope.launch { themePreferences?.setThemeMode(ThemeMode.DARK) } },
                         icon = { Icon(Icons.Default.DarkMode, null, modifier = Modifier.size(16.dp)) }
-                    ) { Text("Koyu", fontSize = 13.sp) }
+                    ) { Text(strings.settingsThemeDark, fontSize = 13.sp) }
                 }
             }
         }
@@ -228,7 +234,7 @@ fun SettingsScreen(
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Dil / Language", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(strings.settingsLanguage, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     SegmentedButton(
@@ -276,7 +282,7 @@ fun SettingsScreen(
         ) {
             Icon(Icons.Default.Logout, null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Çıkış Yap", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Text(strings.logout, fontSize = 16.sp, fontWeight = FontWeight.Medium)
         }
     }
 }

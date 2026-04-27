@@ -18,11 +18,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bugra.campussync.network.ChatContact
 import com.bugra.campussync.network.ChatConversation
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.viewmodels.ChatInboxViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatInboxScreen(onOpenChat: (Int, String) -> Unit) {
+    val strings = LocalAppStrings.current
     val viewModel: ChatInboxViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     val conversations = state.conversations
@@ -35,7 +37,7 @@ fun ChatInboxScreen(onOpenChat: (Int, String) -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Mesajlar", fontWeight = FontWeight.Bold) },
+                title = { Text(strings.chatInboxTitle, fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
@@ -46,7 +48,7 @@ fun ChatInboxScreen(onOpenChat: (Int, String) -> Unit) {
                     showNewChat = true
                 },
                 containerColor = MaterialTheme.colorScheme.primary
-            ) { Icon(Icons.Default.Add, "Yeni Mesaj", tint = Color.White) }
+            ) { Icon(Icons.Default.Add, strings.chatInboxNewMessage, tint = Color.White) }
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
@@ -57,8 +59,8 @@ fun ChatInboxScreen(onOpenChat: (Int, String) -> Unit) {
                 conversations.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.Person, null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
-                        Text("Henüz mesaj yok.", color = Color.Gray)
-                        Text("+ ile yeni sohbet başlatın.", color = Color.LightGray, fontSize = 13.sp)
+                        Text(strings.chatInboxNone, color = Color.Gray)
+                        Text(strings.chatInboxStartHint, color = Color.LightGray, fontSize = 13.sp)
                     }
                 }
                 else -> LazyColumn(Modifier.fillMaxSize()) {
@@ -88,6 +90,7 @@ fun ChatInboxScreen(onOpenChat: (Int, String) -> Unit) {
 
 @Composable
 private fun ConversationRow(conv: ChatConversation, onClick: () -> Unit) {
+    val strings = LocalAppStrings.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -125,7 +128,7 @@ private fun ConversationRow(conv: ChatConversation, onClick: () -> Unit) {
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = (if (conv.is_mine) "Sen: " else "") + conv.last_message,
+                    text = (if (conv.is_mine) strings.chatYouPrefix else "") + conv.last_message,
                     fontSize = 13.sp,
                     color = if (conv.unread_count > 0) MaterialTheme.colorScheme.onSurface else Color.Gray,
                     maxLines = 1,
@@ -160,6 +163,7 @@ private fun NewChatDialog(
     onDismiss: () -> Unit,
     onSelect: (ChatContact) -> Unit
 ) {
+    val strings = LocalAppStrings.current
     val filtered = contacts.filter {
         it.name.contains(searchQuery, ignoreCase = true) ||
         it.username.contains(searchQuery, ignoreCase = true)
@@ -167,13 +171,13 @@ private fun NewChatDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Yeni Sohbet") },
+        title = { Text(strings.chatInboxNewChat) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchChange,
-                    placeholder = { Text("Kullanıcı ara\u2026") },
+                    placeholder = { Text(strings.chatInboxSearch) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -181,18 +185,18 @@ private fun NewChatDialog(
                     items(filtered, key = { it.id }) { contact ->
                         ListItem(
                             headlineContent = { Text(contact.name) },
-                            supportingContent = { Text("@${contact.username} \u00b7 ${contact.role.lowercase().replaceFirstChar { it.uppercase() }}", fontSize = 12.sp) },
+                            supportingContent = { Text("@${contact.username} · ${contact.role.lowercase().replaceFirstChar { it.uppercase() }}", fontSize = 12.sp) },
                             modifier = Modifier.clickable { onSelect(contact) }
                         )
                         HorizontalDivider(thickness = 0.5.dp)
                     }
                     if (filtered.isEmpty()) {
-                        item { Text("Kullanıcı bulunamadı.", color = Color.Gray, modifier = Modifier.padding(8.dp)) }
+                        item { Text(strings.chatInboxNotFound, color = Color.Gray, modifier = Modifier.padding(8.dp)) }
                     }
                 }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("İptal") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(strings.cancel) } }
     )
 }

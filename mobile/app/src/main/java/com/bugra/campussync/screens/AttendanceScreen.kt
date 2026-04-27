@@ -30,6 +30,7 @@ import com.bugra.campussync.network.AttendanceRecordItem
 import com.bugra.campussync.network.AttendanceSessionItem
 import com.bugra.campussync.network.RetrofitClient
 import com.bugra.campussync.network.ScheduleItem
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.AttendanceViewModel
 import com.google.zxing.BarcodeFormat
@@ -39,6 +40,7 @@ import com.google.zxing.qrcode.QRCodeWriter
 @Composable
 fun AttendanceScreen() {
     val context = LocalContext.current
+    val strings = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
     val role = (tokenManager.getRole() ?: "").uppercase()
     val isStudent = role == "STUDENT"
@@ -49,7 +51,7 @@ fun AttendanceScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Yoklama", fontWeight = FontWeight.Bold) },
+                title = { Text(strings.attendanceTitle, fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
@@ -59,17 +61,17 @@ fun AttendanceScreen() {
                 if (isStudent) {
                     Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
                         icon = { Icon(Icons.Default.QrCodeScanner, null, modifier = Modifier.size(18.dp)) },
-                        text = { Text("QR Tara") })
+                        text = { Text(strings.attendanceScanQR) })
                     Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
                         icon = { Icon(Icons.Default.History, null, modifier = Modifier.size(18.dp)) },
-                        text = { Text("Geçmişim") })
+                        text = { Text(strings.attendanceHistory) })
                 } else {
                     Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
                         icon = { Icon(Icons.Default.QrCode, null, modifier = Modifier.size(18.dp)) },
-                        text = { Text("QR Oluştur") })
+                        text = { Text(strings.attendanceCreateQR) })
                     Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
                         icon = { Icon(Icons.Default.History, null, modifier = Modifier.size(18.dp)) },
-                        text = { Text("Oturumlar") })
+                        text = { Text(strings.attendanceSessions) })
                 }
             }
             when {
@@ -77,7 +79,7 @@ fun AttendanceScreen() {
                     onCheckIn = { token ->
                         viewModel.checkIn(
                             token = token,
-                            onSuccess = { course -> Toast.makeText(context, "✓ Yoklama alındı: $course", Toast.LENGTH_SHORT).show() },
+                            onSuccess = { course -> Toast.makeText(context, "✓ ${strings.attendanceRecorded}: $course", Toast.LENGTH_SHORT).show() },
                             onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
                         )
                     }
@@ -105,9 +107,10 @@ private fun StudentCheckInTab(onCheckIn: (String) -> Unit) {
         Icon(Icons.Default.QrCodeScanner, null,
             modifier = Modifier.size(80.dp),
             tint = MaterialTheme.colorScheme.primary)
-        Text("QR Kodu Tarayın", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        val strings = LocalAppStrings.current
+        Text(strings.attendanceScanTitle, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text(
-            "Hocanızın gösterdiği QR kodu telefonunuzla tarayın veya kodu manuel girin.",
+            strings.attendanceScanHint,
             textAlign = TextAlign.Center,
             color = androidx.compose.ui.graphics.Color.Gray,
             fontSize = 14.sp
@@ -128,13 +131,14 @@ private fun StudentCheckInTab(onCheckIn: (String) -> Unit) {
         ) {
             Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Yoklamaya Katıl", fontSize = 16.sp)
+            Text(strings.attendanceJoin, fontSize = 16.sp)
         }
     }
 }
 
 @Composable
 private fun StudentAttendanceHistoryTab(viewModel: AttendanceViewModel) {
+    val strings = LocalAppStrings.current
     val state by viewModel.state.collectAsState()
     val records = state.history
     val isLoading = state.isLoading
@@ -145,7 +149,7 @@ private fun StudentAttendanceHistoryTab(viewModel: AttendanceViewModel) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
     } else if (records.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Henüz yoklama kaydınız yok.", color = androidx.compose.ui.graphics.Color.Gray)
+            Text(strings.attendanceNoHistory, color = androidx.compose.ui.graphics.Color.Gray)
         }
     } else {
         LazyColumn(
@@ -160,7 +164,7 @@ private fun StudentAttendanceHistoryTab(viewModel: AttendanceViewModel) {
                             modifier = Modifier.size(24.dp))
                         Spacer(Modifier.width(12.dp))
                         Column {
-                            Text("Oturum #${record.session}", fontWeight = FontWeight.SemiBold)
+                            Text("${strings.attendanceSession} #${record.session}", fontWeight = FontWeight.SemiBold)
                             Text(record.checked_in_at.take(16).replace("T", " "),
                                 fontSize = 12.sp, color = androidx.compose.ui.graphics.Color.Gray)
                         }
@@ -228,15 +232,17 @@ private fun LecturerQRTab(viewModel: AttendanceViewModel) {
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }
-                    Text("Katılım: ${sessionRecords.size} öğrenci", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    val str = LocalAppStrings.current
+                    Text("${sessionRecords.size} ${str.attendanceParticipants}", color = MaterialTheme.colorScheme.onPrimaryContainer)
                     OutlinedButton(onClick = { viewModel.endSession() }) {
-                        Text("Yoklamayı Bitir")
+                        Text(str.attendanceEndSession)
                     }
                 }
             }
             // Live attendance list
             if (sessionRecords.isNotEmpty()) {
-                Text("Yoklamaya Katılanlar", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                val str = LocalAppStrings.current
+                Text(str.attendanceParticipantList, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 sessionRecords.forEach { record ->
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -259,8 +265,10 @@ private fun LecturerQRTab(viewModel: AttendanceViewModel) {
                     CircularProgressIndicator()
                 }
             } else if (schedules.isEmpty()) {
-                Text("Ders programınız bulunamadı.", color = androidx.compose.ui.graphics.Color.Gray)
+                val str = LocalAppStrings.current
+                Text(str.attendanceNoSchedule, color = androidx.compose.ui.graphics.Color.Gray)
             } else {
+                val str = LocalAppStrings.current
                 ExposedDropdownMenuBox(
                     expanded = scheduleExpanded,
                     onExpandedChange = { scheduleExpanded = !scheduleExpanded }
@@ -269,8 +277,8 @@ private fun LecturerQRTab(viewModel: AttendanceViewModel) {
                         value = selectedScheduleLabel,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Ders Seç") },
-                        placeholder = { Text("Ders seçin…") },
+                        label = { Text(str.attendanceSelectCourse) },
+                        placeholder = { Text(str.attendanceSelectCourse) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = scheduleExpanded) },
                         modifier = Modifier.menuAnchor().fillMaxWidth()
                     )
@@ -315,7 +323,7 @@ private fun LecturerQRTab(viewModel: AttendanceViewModel) {
                     else {
                         Icon(Icons.Default.QrCode, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Yoklama QR Oluştur", fontSize = 15.sp)
+                        Text(str.attendanceCreateQRTitle, fontSize = 15.sp)
                     }
                 }
             }
@@ -326,12 +334,13 @@ private fun LecturerQRTab(viewModel: AttendanceViewModel) {
 @Composable
 private fun LecturerSessionsTab() {
     val context = LocalContext.current
+    val strings = LocalAppStrings.current
     var sessions by remember { mutableStateOf<List<AttendanceSessionItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         try { sessions = RetrofitClient.apiService.getMySessions() } catch (e: Exception) {
-            Toast.makeText(context, "Yüklenemedi.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, strings.loadFailed, Toast.LENGTH_SHORT).show()
         } finally { isLoading = false }
     }
 
@@ -339,7 +348,7 @@ private fun LecturerSessionsTab() {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
     } else if (sessions.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Henüz yoklama oturumu oluşturmadınız.", color = androidx.compose.ui.graphics.Color.Gray)
+            Text(strings.attendanceNoSessions, color = androidx.compose.ui.graphics.Color.Gray)
         }
     } else {
         LazyColumn(
@@ -357,7 +366,7 @@ private fun LecturerSessionsTab() {
                                 shape = MaterialTheme.shapes.small
                             ) {
                                 Text(
-                                    if (session.is_expired) "Süresi Doldu" else "Aktif",
+                                    if (session.is_expired) strings.attendanceExpired else strings.attendanceActive,
                                     fontSize = 11.sp,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     color = if (session.is_expired) MaterialTheme.colorScheme.onErrorContainer
@@ -366,7 +375,7 @@ private fun LecturerSessionsTab() {
                             }
                         }
                         Text(session.course_name, fontSize = 13.sp, color = androidx.compose.ui.graphics.Color.Gray)
-                        Text("${session.session_date} · ${session.record_count} katılımcı",
+                        Text("${session.session_date} · ${session.record_count} ${strings.attendanceParticipants}",
                             fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                     }
                 }

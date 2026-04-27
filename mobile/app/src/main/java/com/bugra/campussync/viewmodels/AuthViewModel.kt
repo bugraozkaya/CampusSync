@@ -32,7 +32,11 @@ class AuthViewModel : ViewModel() {
                 RetrofitClient.authToken = response.access
                 _state.update { it.copy(isLoading = false, loginResult = response) }
             } catch (e: HttpException) {
-                val msg = when (e.code()) {
+                val body = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
+                val serverMsg = body?.let {
+                    Regex(""""detail"\s*:\s*"([^"]+)"""").find(it)?.groupValues?.get(1)
+                }
+                val msg = serverMsg ?: when (e.code()) {
                     401 -> "Kullanıcı adı veya şifre hatalı."
                     403 -> "Bu hesaba erişim izniniz yok."
                     423 -> "Hesabınız geçici olarak kilitlendi. Lütfen daha sonra tekrar deneyin."

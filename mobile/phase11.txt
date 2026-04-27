@@ -1,0 +1,27 @@
+1. Proje Özeti
+  Bu proje, üniversite bünyesindeki derslerin ve öğretim görevlilerinin haftalık programlarını yöneten, kullanıcı rollerine göre farklı yetkiler sunan bir mobil uygulama
+  prototipidir. Uygulama, modern Android geliştirme standartları (Jetpack Compose, Material3, Navigasyon) üzerine inşa edilmiştir.
+
+  2. Teknik Gereksinimler ve Özellikler
+
+  Phase 1: Temal Yapı ve Navigasyon
+   * Navigation Component: Uygulama içerisinde 4 ana ekran (Home, Calendar, Data, Settings) arasında geçiş yapabilen bir BottomNavigationBar yapısı kurulmalıdır.
+   * Material3 Design: Uygulama arayüzünde Material3 bileşenleri (Scaffold, NavigationBar, Card, ListItem, Button) kullanılmalıdır.
+   * State Management: Kullanıcı bilgileri, ders listesi ve kayıt durumu uygulama genelinde remember ve mutableStateOf ile yönetilmelidir.
+
+  Phase 2: Kullanıcı Kaydı ve Ayarlar (Settings)
+   * Profil Formu: Kullanıcıdan Ad-Soyad, Departman (Dropdown) ve Pozisyon (Admin/Lecturer Dropdown) bilgilerini alan bir form oluşturulmalıdır.
+   * Kısıtlı Giriş: Uygulama ilk açıldığında eğer kullanıcı kaydı yoksa, "Home" ekranında kullanıcıyı "Settings" ekranına yönlendiren bir AlertDialog gösterilmelidir.
+
+  Phase 3: Veri Yönetimi ve Import (Data)
+   * Veri Modelleri: Course (Code, Name, Lecturer, Day, Slot) ve Lecturer (Name, Username, Password) veri modelleri tanımlanmalıdır.
+   * Dinamik Veri Yükleme: "Data" ekranındaki "Import" butonu aracılığıyla önceden tanımlanmış ham veriler (Ders kodları ve isimleri) sisteme işlenmeli ve LazyColumn ile
+     listelenmelidir.
+   * Otomatik Hesap Oluşturma: Sisteme import edilen her öğretim görevlisi için otomatik olarak kullanıcı adı (lowercase/underscore) ve rastgele 6 haneli bir şifre üretilmelidir.
+
+  Phase 4: Akıllı Takvim ve Rol Tabanlı Erişim (Calendar)
+   * Haftalık Çizelge: Pazartesi-Cuma arası her gün için "Morning" ve "Afternoon" slotlarını içeren bir görsel takvim tasarımı yapılmalıdır.
+   * Rol Tabanlı Filtreleme (Authorization):
+       * Admin: Tüm ders programını görebilmeli ve ders kartlarında öğretim görevlisi ismini görebilmelidir.
+       * Lecturer: Sadece kendi adına atanmış olan dersleri takvimde görebilmelidir. Diğer slotlar boş görünmelidir.
+   * Dinamik Renklendirme: Dolu slotlar ana tema renginde, boş slotlar ise gri/outline renginde gösterilmelidir.

@@ -81,10 +81,11 @@ CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',') if not DEBUG else []
 CORS_ALLOW_CREDENTIALS = True
 
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+LANGUAGE_CODE = 'tr'
+TIME_ZONE = 'Europe/Istanbul'
 USE_I18N = True
 USE_TZ = True
+DEFAULT_CHARSET = 'utf-8'
 
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -101,6 +102,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
+    'UNICODE_JSON': True,
 }
 
 # Media files (uploads)

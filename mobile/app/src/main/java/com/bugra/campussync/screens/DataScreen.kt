@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.viewmodels.DataViewModel
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -34,6 +35,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 @Composable
 fun DataScreen(onNavigateToCalendar: () -> Unit) {
     val context = LocalContext.current
+    val strings = LocalAppStrings.current
 
     val viewModel: DataViewModel = viewModel()
     val state by viewModel.state.collectAsState()
@@ -109,7 +111,7 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                 ) {
                     Icon(Icons.Default.Add, null, modifier = Modifier.size(56.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("Dosya Seçildi", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(strings.dataFileSelected, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text(
                         text = selectedExcelUri?.lastPathSegment ?: "",
                         color = Color.Gray,
@@ -156,13 +158,13 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text("Yükleniyor...")
+                            Text(strings.uploading)
                         } else {
-                            Text("Sisteme İşle", fontSize = 16.sp)
+                            Text(strings.dataProcessToSystem, fontSize = 16.sp)
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(onClick = { selectedExcelUri = null }) { Text("Vazgeç") }
+                    TextButton(onClick = { selectedExcelUri = null }) { Text(strings.cancel) }
                 }
 
             } else {
@@ -173,12 +175,12 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Kayıtlı Hocalar", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Text(strings.dataRegisteredLecturers, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                         IconButton(onClick = { viewModel.fetchLecturers() }) {
                             if (isFetchingExisting)
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                             else
-                                Icon(Icons.Default.Refresh, "Yenile")
+                                Icon(Icons.Default.Refresh, strings.refresh)
                         }
                     }
 
@@ -203,13 +205,13 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text(
-                                    "Henüz kayıtlı hoca yok.",
+                                    strings.dataNoLecturers,
                                     color = Color.Gray,
                                     fontSize = 15.sp
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    "Excel yükleyerek veya + butonuyla hoca ekleyin.",
+                                    strings.dataAddHint,
                                     color = Color.LightGray,
                                     fontSize = 12.sp
                                 )
@@ -274,7 +276,7 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                                                 modifier = Modifier.height(32.dp),
                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                                             ) {
-                                                Text("Takvim", fontSize = 11.sp)
+                                                Text(strings.dataCalendar, fontSize = 11.sp)
                                             }
                                         }
                                     }
@@ -290,13 +292,13 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
         if (showCourseDialog) {
             AlertDialog(
                 onDismissRequest = { if (!isSubmittingCourse) showCourseDialog = false },
-                title = { Text("Yeni Ders Ekle") },
+                title = { Text(strings.dataAddCourse) },
                 text = {
                     Column {
                         OutlinedTextField(
                             value = courseName,
                             onValueChange = { courseName = it },
-                            label = { Text("Ders Adı") },
+                            label = { Text(strings.dataCourseName) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -304,7 +306,7 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                         OutlinedTextField(
                             value = courseCode,
                             onValueChange = { courseCode = it },
-                            label = { Text("Ders Kodu (örn: CNG 103)") },
+                            label = { Text(strings.dataCourseCode) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -314,17 +316,17 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                     Button(
                         onClick = {
                             if (courseName.isBlank()) {
-                                Toast.makeText(context, "Ders adı boş olamaz!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, strings.dataCourseNameEmpty, Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
                             if (courseCode.isBlank()) {
-                                Toast.makeText(context, "Ders kodu boş olamaz!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, strings.dataCourseCodeEmpty, Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
                             viewModel.createCourse(
                                 name = courseName, code = courseCode,
                                 onSuccess = {
-                                    Toast.makeText(context, "Ders eklendi!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, strings.dataCourseAdded, Toast.LENGTH_SHORT).show()
                                     showCourseDialog = false
                                     courseName = ""; courseCode = ""
                                 },
@@ -336,10 +338,10 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                         enabled = !isSubmittingCourse
                     ) {
                         if (isSubmittingCourse) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                        else Text("Kaydet")
+                        else Text(strings.save)
                     }
                 },
-                dismissButton = { TextButton(onClick = { showCourseDialog = false }) { Text("İptal") } }
+                dismissButton = { TextButton(onClick = { showCourseDialog = false }) { Text(strings.cancel) } }
             )
         }
 
@@ -347,13 +349,13 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
         if (showManualDialog) {
             AlertDialog(
                 onDismissRequest = { if (!isSubmittingLecturer) showManualDialog = false },
-                title = { Text("Yeni Hoca Ekle") },
+                title = { Text(strings.dataAddLecturer) },
                 text = {
                     Column {
                         OutlinedTextField(
                             value = manualName,
                             onValueChange = { manualName = it },
-                            label = { Text("Ad") },
+                            label = { Text(strings.settingsFirstName) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -361,7 +363,7 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                         OutlinedTextField(
                             value = manualSurname,
                             onValueChange = { manualSurname = it },
-                            label = { Text("Soyad") },
+                            label = { Text(strings.settingsLastName) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -369,7 +371,7 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                         OutlinedTextField(
                             value = manualDept,
                             onValueChange = { manualDept = it },
-                            label = { Text("Departman (zorunlu)") },
+                            label = { Text(strings.dataDepartment) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             isError = manualDept.isBlank() && manualName.isNotBlank()
@@ -377,7 +379,7 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                         if (manualName.isNotEmpty() && manualSurname.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Kullanıcı adı: ${viewModel.generateUsername(manualName, manualSurname)}",
+                                text = "${strings.loginUsername}: ${viewModel.generateUsername(manualName, manualSurname)}",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.secondary
                             )
@@ -389,18 +391,18 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                         onClick = {
                             when {
                                 manualName.isBlank() ->
-                                    Toast.makeText(context, "Ad boş olamaz!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, strings.dataFirstNameEmpty, Toast.LENGTH_SHORT).show()
                                 manualSurname.isBlank() ->
-                                    Toast.makeText(context, "Soyad boş olamaz!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, strings.dataLastNameEmpty, Toast.LENGTH_SHORT).show()
                                 manualDept.isBlank() ->
-                                    Toast.makeText(context, "Departman boş olamaz!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, strings.dataDepartmentEmpty, Toast.LENGTH_SHORT).show()
                                 else -> {
                                     viewModel.createLecturer(
                                         firstName = manualName,
                                         lastName = manualSurname,
                                         department = manualDept,
                                         onSuccess = { _, password ->
-                                            Toast.makeText(context, "Hoca eklendi!\nŞifre: $password", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, "${strings.dataLecturerAdded}$password", Toast.LENGTH_LONG).show()
                                             showManualDialog = false
                                             manualName = ""; manualSurname = ""; manualDept = ""
                                         },
@@ -414,32 +416,32 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                         enabled = !isSubmittingLecturer
                     ) {
                         if (isSubmittingLecturer) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                        else Text("Kaydet")
+                        else Text(strings.save)
                     }
                 },
-                dismissButton = { TextButton(onClick = { showManualDialog = false }) { Text("İptal") } }
+                dismissButton = { TextButton(onClick = { showManualDialog = false }) { Text(strings.cancel) } }
             )
         }
 
-        // -- Öğrenci Ekle Dialog --
+        // -- Student Add Dialog --
         if (showStudentDialog) {
             AlertDialog(
                 onDismissRequest = { if (!isSubmittingStudent) showStudentDialog = false },
-                title = { Text("Yeni Öğrenci Ekle") },
+                title = { Text(strings.dataAddStudent) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = studentName, onValueChange = { studentName = it }, label = { Text("Ad") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                        OutlinedTextField(value = studentSurname, onValueChange = { studentSurname = it }, label = { Text("Soyad") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        OutlinedTextField(value = studentName, onValueChange = { studentName = it }, label = { Text(strings.settingsFirstName) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        OutlinedTextField(value = studentSurname, onValueChange = { studentSurname = it }, label = { Text(strings.settingsLastName) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                         OutlinedTextField(
                             value = studentNumber, onValueChange = { studentNumber = it },
-                            label = { Text("Öğrenci No (kullanıcı adı olur)") },
+                            label = { Text(strings.dataStudentNo) },
                             modifier = Modifier.fillMaxWidth(), singleLine = true,
                             placeholder = { Text("örn: 20230001") }
                         )
                         if (studentName.isNotEmpty() && studentSurname.isNotEmpty()) {
                             val previewUsername = if (studentNumber.isNotBlank()) studentNumber
                                                   else viewModel.generateUsername(studentName, studentSurname)
-                            Text("Kullanıcı adı: $previewUsername", fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)
+                            Text("${strings.loginUsername}: $previewUsername", fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)
                         }
                     }
                 },
@@ -447,12 +449,12 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                     Button(
                         onClick = {
                             when {
-                                studentName.isBlank() -> Toast.makeText(context, "Ad boş olamaz!", Toast.LENGTH_SHORT).show()
-                                studentSurname.isBlank() -> Toast.makeText(context, "Soyad boş olamaz!", Toast.LENGTH_SHORT).show()
+                                studentName.isBlank() -> Toast.makeText(context, strings.dataFirstNameEmpty, Toast.LENGTH_SHORT).show()
+                                studentSurname.isBlank() -> Toast.makeText(context, strings.dataLastNameEmpty, Toast.LENGTH_SHORT).show()
                                 else -> viewModel.createStudent(
                                     firstName = studentName, lastName = studentSurname, studentNumber = studentNumber,
                                     onSuccess = { username, password ->
-                                        Toast.makeText(context, "Öğrenci eklendi!\nKullanıcı: $username\nŞifre: $password", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(context, "${strings.dataStudentAdded}\n${strings.loginUsername}: $username\n${strings.loginPassword}: $password", Toast.LENGTH_LONG).show()
                                         showStudentDialog = false
                                         studentName = ""; studentSurname = ""; studentNumber = ""
                                     },
@@ -463,10 +465,10 @@ fun DataScreen(onNavigateToCalendar: () -> Unit) {
                         enabled = !isSubmittingStudent
                     ) {
                         if (isSubmittingStudent) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                        else Text("Kaydet")
+                        else Text(strings.save)
                     }
                 },
-                dismissButton = { TextButton(onClick = { showStudentDialog = false }) { Text("İptal") } }
+                dismissButton = { TextButton(onClick = { showStudentDialog = false }) { Text(strings.cancel) } }
             )
         }
     }

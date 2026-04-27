@@ -383,10 +383,13 @@ class UserViewSet(viewsets.ModelViewSet):
         current = request.data.get('current_password', '')
         new_pw = request.data.get('new_password', '')
 
-        if not current or not new_pw:
-            return Response({'error': _t(request, 'Mevcut ve yeni şifre gerekli.', 'Current password and new password are required.')}, status=400)
-        if not user.check_password(current):
-            return Response({'error': _t(request, 'Mevcut şifre hatalı.', 'Current password is incorrect.')}, status=400)
+        if not new_pw:
+            return Response({'error': _t(request, 'Yeni şifre gerekli.', 'New password is required.')}, status=400)
+        if not user.must_change_password:
+            if not current:
+                return Response({'error': _t(request, 'Mevcut şifre gerekli.', 'Current password is required.')}, status=400)
+            if not user.check_password(current):
+                return Response({'error': _t(request, 'Mevcut şifre hatalı.', 'Current password is incorrect.')}, status=400)
         if len(new_pw) < 8:
             return Response({'error': _t(request, 'Yeni şifre en az 8 karakter olmalı.', 'New password must be at least 8 characters.')}, status=400)
         try:
@@ -1443,3 +1446,21 @@ class GradeViewSet(viewsets.ModelViewSet):
         grades = Grade.objects.filter(course_id=course_id).select_related('student')
         serializer = GradeSerializer(grades, many=True)
         return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([])
+def forgot_password(request):
+    username = request.data.get('username', '').strip()
+    if not username:
+        return Response({'error': 'Kullanıcı adı gerekli.'}, status=400)
+    User = get_user_model()
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        return Response({'error': 'Bu kullanıcı adıyla kayıtlı hesap bulunamadı.'}, status=404)
+    new_pass = gen_password()
+    user.set_password(new_pass)
+    user.must_change_password = True
+    user.save()
+    return Response({'temp_password': new_pass})
