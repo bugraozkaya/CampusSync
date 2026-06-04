@@ -7,10 +7,11 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password, check_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.cache import cache
 from django.http import HttpResponse
 from django.utils.text import slugify
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, models
 from datetime import time as time_type, timedelta
 import secrets
 import openpyxl
@@ -20,13 +21,13 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.exceptions import AuthenticationFailed
 
-from .models import Institution, Department, Classroom, Course, Schedule, Unavailability, StudentEnrollment, Announcement, UserNotification, AttendanceSession, AttendanceRecord, ChatMessage, CourseMaterial, Grade, AuditLog
+from .models import Institution, Department, Classroom, Course, Schedule, Unavailability, StudentEnrollment, Announcement, UserNotification, AttendanceSession, AttendanceRecord, ChatMessage, CourseMaterial, Grade, AuditLog, CourseNote
 from .serializers import (
     InstitutionSerializer, UserSerializer, DepartmentSerializer,
     ClassroomSerializer, CourseSerializer, ScheduleSerializer,
     StudentEnrollmentSerializer, AnnouncementSerializer, UserNotificationSerializer,
     AttendanceSessionSerializer, AttendanceRecordSerializer,
-    ChatMessageSerializer, CourseMaterialSerializer, GradeSerializer,
+    ChatMessageSerializer, CourseMaterialSerializer, GradeSerializer, CourseNoteSerializer,
 )
 
 User = get_user_model()
@@ -254,6 +255,7 @@ class InstitutionViewSet(viewsets.ModelViewSet):
     queryset = Institution.objects.all()
     serializer_class = InstitutionSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         user = self.request.user
@@ -270,6 +272,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         user = self.request.user
@@ -304,7 +307,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='create-admin')
     def create_admin(self, request):
-        """SUPERADMIN veya ADMIN herhangi bir kullanıcı oluşturabilir."""
+        """Kullanıcı oluşturma — rol bazlı yetki kısıtlaması uygulanır."""
         actor = request.user
         if actor.role not in ('SUPERADMIN', 'ADMIN', 'STAFF', 'IT'):
             return Response({'error': _t(request, 'Yetki yok.', 'You are not allowed to perform this action.')}, status=403)
@@ -312,10 +315,15 @@ class UserViewSet(viewsets.ModelViewSet):
         data = request.data
         role = data.get('role', 'LECTURER')
 
-        # ADMIN yalnızca kendi kurumuna ve belirli rollere kullanıcı ekleyebilir
-        if actor.role != 'SUPERADMIN':
-            if role in ('SUPERADMIN',):
+        # Rol bazlı oluşturma kısıtlaması
+        if actor.role == 'SUPERADMIN':
+            pass  # Her rolü oluşturabilir
+        elif actor.role == 'ADMIN':
+            if role in ('SUPERADMIN', 'ADMIN'):
                 return Response({'error': _t(request, 'Bu rolü sadece sistem yöneticisi atayabilir.', 'You are not allowed to create this role.')}, status=403)
+        elif actor.role in ('STAFF', 'IT'):
+            if role not in ('LECTURER', 'STUDENT'):
+                return Response({'error': _t(request, 'Personel yalnızca Öğretim Üyesi ve Öğrenci hesabı oluşturabilir.', 'Staff can only create Lecturer or Student accounts.')}, status=403)
 
         institution_id = data.get('institution_id') or (actor.institution_id if actor.role != 'SUPERADMIN' else None)
         if not institution_id:
@@ -403,6 +411,38 @@ class UserViewSet(viewsets.ModelViewSet):
         audit(request.user, 'UPDATE', 'User', user.pk, f'Şifre değiştirildi: {user.username}', request=request)
         return Response({'message': 'Şifre güncellendi.'})
 
+    @action(detail=True, methods=['get', 'post'], url_path='courses')
+    def lecturer_courses(self, request, pk=None):
+        actor = request.user
+        if actor.role not in ('ADMIN', 'SUPERADMIN', 'STAFF', 'IT'):
+            return Response({'error': 'Yetki yok.'}, status=403)
+        lecturer = self.get_object()
+        if request.method == 'GET':
+            from .serializers import CourseSerializer
+            return Response(CourseSerializer(lecturer.assigned_courses.all(), many=True).data)
+        course_id = request.data.get('course_id')
+        if not course_id:
+            return Response({'error': 'course_id gerekli.'}, status=400)
+        try:
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            return Response({'error': 'Ders bulunamadı.'}, status=404)
+        lecturer.assigned_courses.add(course)
+        return Response({'status': 'ok'}, status=201)
+
+    @action(detail=True, methods=['delete'], url_path='courses/(?P<course_id>[^/.]+)')
+    def remove_lecturer_course(self, request, pk=None, course_id=None):
+        actor = request.user
+        if actor.role not in ('ADMIN', 'SUPERADMIN', 'STAFF', 'IT'):
+            return Response({'error': 'Yetki yok.'}, status=403)
+        lecturer = self.get_object()
+        try:
+            course = Course.objects.get(id=int(course_id))
+        except (Course.DoesNotExist, ValueError):
+            return Response({'error': 'Ders bulunamadı.'}, status=404)
+        lecturer.assigned_courses.remove(course)
+        return Response(status=204)
+
 
 class ClassroomViewSet(viewsets.ModelViewSet):
     queryset = Classroom.objects.all()
@@ -414,17 +454,22 @@ class ClassroomViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return Classroom.objects.none()
         if user.role == 'SUPERADMIN':
-            return Classroom.objects.all()
+            return Classroom.objects.all().order_by('room_code')
         if user.institution:
-            return Classroom.objects.filter(institution=user.institution)
+            return Classroom.objects.filter(institution=user.institution).order_by('room_code')
         return Classroom.objects.none()
 
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        if not data.get('institution') and request.user.institution:
+            data['institution'] = request.user.institution.id
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     def perform_create(self, serializer):
-        user = self.request.user
-        if user.role != 'SUPERADMIN' and user.institution:
-            serializer.save(institution=user.institution)
-        else:
-            serializer.save()
+        serializer.save()
 
     @action(detail=False, methods=['post'], url_path='bulk-import-excel',
             parser_classes=[MultiPartParser])
@@ -511,6 +556,17 @@ class CourseViewSet(viewsets.ModelViewSet):
         if user.institution:
             return Course.objects.filter(department__institution=user.institution)
         return Course.objects.none()
+
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        if not data.get('department'):
+            dept = Department.objects.filter(institution=request.user.institution).first()
+            if dept:
+                data['department'] = dept.id
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['post'], url_path='bulk-import-excel',
             parser_classes=[MultiPartParser])
@@ -624,7 +680,11 @@ class ScheduleViewSet(viewsets.ModelViewSet):
         if user.role == 'SUPERADMIN':
             return qs
         if user.role in ('ADMIN', 'STAFF', 'IT') and user.institution:
-            return qs.filter(course__department__institution=user.institution)
+            qs = qs.filter(course__department__institution=user.institution)
+            lecturer_id = self.request.query_params.get('lecturer_id')
+            if lecturer_id:
+                qs = qs.filter(lecturer_id=lecturer_id)
+            return qs
         if user.role == 'LECTURER':
             return qs.filter(lecturer=user)
         return qs.none()
@@ -914,12 +974,14 @@ class UnavailabilityViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        """GET /api/unavailability/ — mevcut kullanıcının meşgul slotları"""
+        """GET /api/unavailability/ — mevcut kullanıcının (veya admin için belirtilen kullanıcının) meşgul slotları"""
         if not request.user.is_authenticated:
             return Response([], status=200)
-        data = Unavailability.objects.filter(
-            lecturer=request.user
-        ).values('day', 'hour')
+        user_id = request.query_params.get('user_id')
+        if user_id and request.user.role in ('ADMIN', 'SUPERADMIN', 'STAFF', 'IT'):
+            data = Unavailability.objects.filter(lecturer_id=user_id).values('day', 'hour')
+        else:
+            data = Unavailability.objects.filter(lecturer=request.user).values('day', 'hour')
         return Response(list(data))
 
     @action(detail=False, methods=['post'])
@@ -943,6 +1005,7 @@ class UnavailabilityViewSet(viewsets.ViewSet):
 class StudentEnrollmentViewSet(viewsets.ModelViewSet):
     serializer_class = StudentEnrollmentSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         user = self.request.user
@@ -985,12 +1048,21 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == 'SUPERADMIN':
-            qs = Announcement.objects.filter(is_active=True)
-        else:
-            qs = Announcement.objects.filter(institution=user.institution, is_active=True)
-        if user.role in ('ADMIN', 'SUPERADMIN'):
+            return Announcement.objects.filter(is_active=True)
+        qs = Announcement.objects.filter(institution=user.institution, is_active=True)
+        if user.role in ('ADMIN', 'STAFF', 'IT'):
             return qs
-        return qs.filter(audience__in=['ALL', user.role])
+        if user.role == 'STUDENT':
+            enrolled_course_ids = StudentEnrollment.objects.filter(
+                student=user
+            ).values_list('course_id', flat=True)
+            return qs.filter(audience__in=['ALL', 'STUDENT']).filter(
+                models.Q(course__isnull=True) | models.Q(course_id__in=enrolled_course_ids)
+            )
+        # LECTURER
+        return qs.filter(audience__in=['ALL', 'LECTURER']).filter(
+            models.Q(course__isnull=True) | models.Q(course__in=user.assigned_courses.all())
+        )
 
     def perform_create(self, serializer):
         serializer.save(
@@ -1454,13 +1526,54 @@ def forgot_password(request):
     username = request.data.get('username', '').strip()
     if not username:
         return Response({'error': 'Kullanıcı adı gerekli.'}, status=400)
+
+    # Rate limiting: her kullanıcı adı için 5 dakikada 1 sıfırlama
+    cache_key = f'pwd_reset:{slugify(username)}'
+    if cache.get(cache_key):
+        return Response(
+            {'error': 'Çok fazla deneme. Lütfen 5 dakika bekleyip tekrar deneyin.'},
+            status=429
+        )
+
     User = get_user_model()
     try:
         user = User.objects.get(username=username)
     except User.DoesNotExist:
         return Response({'error': 'Bu kullanıcı adıyla kayıtlı hesap bulunamadı.'}, status=404)
+
     new_pass = gen_password()
     user.set_password(new_pass)
     user.must_change_password = True
-    user.save()
+    user.save(update_fields=['password', 'must_change_password'])
+
+    cache.set(cache_key, True, 300)  # 5 dakika
     return Response({'temp_password': new_pass})
+
+
+class CourseNoteViewSet(viewsets.ModelViewSet):
+    serializer_class = CourseNoteSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        user = self.request.user
+        course_id = self.request.query_params.get('course_id')
+        qs = CourseNote.objects.select_related('author', 'course')
+        if course_id:
+            qs = qs.filter(course_id=course_id)
+        if user.role == 'SUPERADMIN':
+            return qs
+        if user.institution:
+            return qs.filter(course__department__institution=user.institution)
+        return CourseNote.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        note = self.get_object()
+        if note.author != request.user and request.user.role not in ('ADMIN', 'SUPERADMIN'):
+            return Response({'error': 'Yetkiniz yok.'}, status=403)
+        note.delete()
+        return Response(status=204)
+

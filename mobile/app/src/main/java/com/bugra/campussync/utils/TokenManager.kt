@@ -63,9 +63,13 @@ class TokenManager(context: Context) {
     fun getPosition(): String? = prefs.getString("POSITION", null)
 
     fun isProfileComplete(): Boolean {
-        return !getNameSurname().isNullOrBlank() &&
-               !getDepartment().isNullOrBlank() &&
-               !getPosition().isNullOrBlank()
+        val hasName = !getFirstName().isNullOrBlank() && !getLastName().isNullOrBlank()
+        val role = getRole()?.uppercase() ?: ""
+        return if (role == "LECTURER") {
+            hasName && !getTitle().isNullOrBlank() && !getDepartment().isNullOrBlank()
+        } else {
+            hasName
+        }
     }
 
     fun clearAll() {

@@ -1,0 +1,8 @@
+room_code,capacity,classroom_type                                                             
+A-101,40,LECTURE                                                                              
+A-102,40,LECTURE                                                                              
+B-201,30,LECTURE                                                                              
+LAB-01,20,LAB                                                                               
+LAB-02,20,LAB                                                                               
+BIL-01,25,COMPUTER_LAB
+SEM-01,50,SEMINAR

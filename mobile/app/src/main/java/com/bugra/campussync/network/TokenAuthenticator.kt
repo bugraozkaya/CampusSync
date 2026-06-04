@@ -18,7 +18,6 @@ class TokenAuthenticator(
         if (response.request.header("X-Retry-Auth") != null) {
             if (tokenManager.getToken() != null) {
                 tokenManager.clearAll()
-                RetrofitClient.authToken = null
                 SessionManager.triggerLogout()
             }
             return null
@@ -29,7 +28,6 @@ class TokenAuthenticator(
 
         val newAccessToken = refreshSync(refreshToken) ?: run {
             tokenManager.clearAll()
-            RetrofitClient.authToken = null
             SessionManager.triggerLogout()
             return null
         }
@@ -41,7 +39,6 @@ class TokenAuthenticator(
             username = tokenManager.getUsername() ?: "",
             mustChangePassword = tokenManager.getMustChangePassword()
         )
-        RetrofitClient.authToken = newAccessToken
 
         return response.request.newBuilder()
             .header("Authorization", "Bearer $newAccessToken")

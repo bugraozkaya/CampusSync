@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -15,26 +17,30 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.bugra.campussync.network.GradeItem
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.bugra.campussync.ui.components.GradeCardItem
 import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.GradeBookViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GradeBookScreen() {
+fun GradeBookScreen(
+    viewModel: GradeBookViewModel = hiltViewModel()
+) {
     val context      = LocalContext.current
     val strings      = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
     val role         = (tokenManager.getRole() ?: "").uppercase()
     val isStudent    = role == "STUDENT"
 
-    val viewModel: GradeBookViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     val grades = state.grades
     val courses = state.courses
     val selectedCourseId = state.selectedCourseId
+    val classAverage = state.classAverage
     val isLoading = state.isLoading
     val isSubmitting = state.isSubmitting
 
@@ -99,16 +105,15 @@ fun GradeBookScreen() {
                 }
             }
 
-            if (isStudent && grades.isNotEmpty()) {
-                val avg = grades.map { it.percentage }.average()
+            if (classAverage != null) {
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                     color = MaterialTheme.colorScheme.primaryContainer,
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(strings.gradesOverallAvg, fontWeight = FontWeight.Medium)
-                        Text("%.1f%%".format(avg), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+                        Text(if (isStudent) strings.gradesOverallAvg else "Sınıf Ortalaması", fontWeight = FontWeight.Medium)
+                        Text("%.1f%%".format(classAverage), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -137,9 +142,13 @@ fun GradeBookScreen() {
                                 }
                             }
                             items(courseGrades, key = { it.id }) { grade ->
-                                GradeCard(grade = grade, isStudent = isStudent, onDelete = if (!isStudent) {
-                                    { viewModel.deleteGrade(grade.id, isStudent) { Toast.makeText(context, strings.gradesDeleteFailed, Toast.LENGTH_SHORT).show() } }
-                                } else null)
+                                GradeCardItem(
+                                    grade = grade,
+                                    isStudent = isStudent,
+                                    onDelete = if (!isStudent) {
+                                        { viewModel.deleteGrade(grade.id, isStudent) { Toast.makeText(context, strings.gradesDeleteFailed, Toast.LENGTH_SHORT).show() } }
+                                    } else null
+                                )
                             }
                         }
                     }
@@ -149,11 +158,21 @@ fun GradeBookScreen() {
     }
 
     if (showAddGrade && selectedCourseId != null) {
-        AlertDialog(
+        Dialog(
             onDismissRequest = { if (!isSubmitting) showAddGrade = false },
-            title = { Text(strings.gradesAdd) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.95f).wrapContentHeight().imePadding(),
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = AlertDialogDefaults.TonalElevation,
+                color = AlertDialogDefaults.containerColor
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(strings.gradesAdd, style = MaterialTheme.typography.headlineSmall)
                     OutlinedTextField(value = gradeStudent, onValueChange = { gradeStudent = it }, label = { Text(strings.gradesStudentUsername) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     ExposedDropdownMenuBox(expanded = gradeTypeExp, onExpandedChange = { gradeTypeExp = !gradeTypeExp }) {
                         OutlinedTextField(
@@ -171,68 +190,34 @@ fun GradeBookScreen() {
                         OutlinedTextField(value = gradeMax, onValueChange = { gradeMax = it }, label = { Text(strings.gradesMax) }, modifier = Modifier.weight(1f), singleLine = true)
                     }
                     OutlinedTextField(value = gradeNotes, onValueChange = { gradeNotes = it }, label = { Text(strings.gradesNote) }, modifier = Modifier.fillMaxWidth(), maxLines = 2)
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val score = gradeScore.toDoubleOrNull()
-                        val max = gradeMax.toDoubleOrNull() ?: 100.0
-                        if (gradeStudent.isBlank() || score == null) { Toast.makeText(context, strings.gradesRequired, Toast.LENGTH_SHORT).show(); return@Button }
-                        viewModel.addGrade(
-                            studentUsername = gradeStudent,
-                            courseId = selectedCourseId!!,
-                            gradeType = gradeType,
-                            score = score,
-                            maxScore = max,
-                            notes = gradeNotes,
-                            onSuccess = {
-                                showAddGrade = false; gradeStudent = ""; gradeScore = ""; gradeNotes = ""
-                                Toast.makeText(context, strings.gradesAdded, Toast.LENGTH_SHORT).show()
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showAddGrade = false }) { Text(strings.cancel) }
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val score = gradeScore.toDoubleOrNull()
+                                val max = gradeMax.toDoubleOrNull() ?: 100.0
+                                if (gradeStudent.isBlank() || score == null) { Toast.makeText(context, strings.gradesRequired, Toast.LENGTH_SHORT).show(); return@Button }
+                                viewModel.addGrade(
+                                    studentUsername = gradeStudent,
+                                    courseId = selectedCourseId!!,
+                                    gradeType = gradeType,
+                                    score = score,
+                                    maxScore = max,
+                                    notes = gradeNotes,
+                                    onSuccess = {
+                                        showAddGrade = false; gradeStudent = ""; gradeScore = ""; gradeNotes = ""
+                                        Toast.makeText(context, strings.gradesAdded, Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
+                                )
                             },
-                            onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
-                        )
-                    },
-                    enabled = !isSubmitting
-                ) {
-                    if (isSubmitting) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                    else Text(strings.add)
-                }
-            },
-            dismissButton = { TextButton(onClick = { showAddGrade = false }) { Text(strings.cancel) } }
-        )
-    }
-}
-
-@Composable
-private fun GradeCard(grade: GradeItem, isStudent: Boolean, onDelete: (() -> Unit)?) {
-    val pct = grade.percentage
-    val color = when {
-        pct >= 85 -> MaterialTheme.colorScheme.primary
-        pct >= 60 -> MaterialTheme.colorScheme.tertiary
-        else      -> MaterialTheme.colorScheme.error
-    }
-    Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(2.dp)) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = color.copy(alpha = 0.12f), shape = MaterialTheme.shapes.medium) {
-                Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("%.0f".format(grade.score), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = color)
-                    Text("/${grade.max_score.toInt()}", fontSize = 10.sp, color = color.copy(alpha = 0.7f))
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(grade.grade_type_display, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                if (!isStudent) Text(grade.student_name.ifBlank { grade.student_username }, fontSize = 12.sp, color = Color.Gray)
-                if (isStudent) Text(grade.course_code, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                if (grade.notes.isNotBlank()) Text(grade.notes, fontSize = 11.sp, color = Color.LightGray)
-            }
-            Surface(color = color.copy(alpha = 0.12f), shape = MaterialTheme.shapes.extraLarge) {
-                Text("%.1f%%".format(pct), fontWeight = FontWeight.Bold, color = color, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-            }
-            onDelete?.let {
-                IconButton(onClick = it, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                            enabled = !isSubmitting
+                        ) {
+                            if (isSubmitting) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                            else Text(strings.add)
+                        }
+                    }
                 }
             }
         }

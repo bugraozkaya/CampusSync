@@ -2,13 +2,16 @@ package com.bugra.campussync.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.bugra.campussync.network.RetrofitClient
+import com.bugra.campussync.network.NetworkResult
+import com.bugra.campussync.repository.AvailabilityRepository
+import com.bugra.campussync.utils.safeApiCall
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
+import javax.inject.Inject
 
 data class AvailabilityUiState(
     val isLoading: Boolean = true,
@@ -17,7 +20,10 @@ data class AvailabilityUiState(
     val error: String? = null
 )
 
-class AvailabilityViewModel : ViewModel() {
+@HiltViewModel
+class AvailabilityViewModel @Inject constructor(
+    private val repository: AvailabilityRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(AvailabilityUiState())
     val state: StateFlow<AvailabilityUiState> = _state.asStateFlow()
@@ -27,16 +33,19 @@ class AvailabilityViewModel : ViewModel() {
     fun load() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            try {
-                val response = RetrofitClient.apiService.getUnavailability()
-                val loaded = response.mapNotNull { item ->
-                    val day = item["day"]?.takeIf { it.isNotBlank() && it != "null" }
-                    val hour = item["hour"]?.takeIf { it.isNotBlank() && it != "null" }
-                    if (day != null && hour != null) "$day-$hour" else null
-                }.toSet()
-                _state.update { it.copy(isLoading = false, busySlots = loaded) }
-            } catch (e: Exception) {
-                _state.update { it.copy(isLoading = false, error = e.message) }
+            when (val result = safeApiCall { repository.getUnavailability() }) {
+                is NetworkResult.Success -> {
+                    val loaded = result.data.mapNotNull { item ->
+                        val day = item["day"]?.takeIf { it.isNotBlank() && it != "null" }
+                        val hour = item["hour"]?.takeIf { it.isNotBlank() && it != "null" }
+                        if (day != null && hour != null) "$day-$hour" else null
+                    }.toSet()
+                    _state.update { it.copy(isLoading = false, busySlots = loaded) }
+                }
+                is NetworkResult.Error -> {
+                    _state.update { it.copy(isLoading = false, error = result.message) }
+                }
+                is NetworkResult.Loading -> { }
             }
         }
     }
@@ -51,23 +60,23 @@ class AvailabilityViewModel : ViewModel() {
     fun save(onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             _state.update { it.copy(isSaving = true) }
-            try {
-                val dataToSend = _state.value.busySlots.map { slot ->
-                    val dashIdx = slot.indexOf('-')
-                    mapOf(
-                        "day" to slot.substring(0, dashIdx),
-                        "hour" to slot.substring(dashIdx + 1)
-                    )
-                }
-                RetrofitClient.apiService.syncUnavailability(dataToSend)
-                onSuccess()
-            } catch (e: HttpException) {
-                onError("Sunucu hatası ${e.code()}: ${e.message()}")
-            } catch (e: Exception) {
-                onError("Kayıt hatası: ${e.localizedMessage}")
-            } finally {
-                _state.update { it.copy(isSaving = false) }
+            val dataToSend = _state.value.busySlots.map { slot ->
+                val dashIdx = slot.indexOf('-')
+                mapOf(
+                    "day" to slot.substring(0, dashIdx),
+                    "hour" to slot.substring(dashIdx + 1)
+                )
             }
+            when (val result = safeApiCall { repository.syncUnavailability(dataToSend) }) {
+                is NetworkResult.Success -> {
+                    onSuccess()
+                }
+                is NetworkResult.Error -> {
+                    onError(result.message)
+                }
+                is NetworkResult.Loading -> { }
+            }
+            _state.update { it.copy(isSaving = false) }
         }
     }
 }

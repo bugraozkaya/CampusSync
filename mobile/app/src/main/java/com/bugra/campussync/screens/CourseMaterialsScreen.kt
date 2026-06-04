@@ -2,11 +2,17 @@ package com.bugra.campussync.screens
 
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,8 +24,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.bugra.campussync.network.CourseMaterialItem
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.bugra.campussync.ui.components.MaterialCard
 import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.CourseMaterialsViewModel
@@ -29,14 +37,15 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CourseMaterialsScreen() {
+fun CourseMaterialsScreen(
+    viewModel: CourseMaterialsViewModel = hiltViewModel()
+) {
     val context      = LocalContext.current
     val strings      = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
     val role         = (tokenManager.getRole() ?: "").uppercase()
-    val canUpload    = role == "LECTURER"
+    val canUpload    = role in listOf("LECTURER", "ADMIN", "STAFF", "IT")
 
-    val viewModel: CourseMaterialsViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     val materials = state.materials
     val courses = state.courses
@@ -56,6 +65,9 @@ fun CourseMaterialsScreen() {
     var uploadFileName by remember { mutableStateOf("") }
     var typeExpanded   by remember { mutableStateOf(false) }
     var courseExpanded by remember { mutableStateOf(false) }
+    var uploadFileSize by remember { mutableStateOf(0L) }
+    var uploadFileMimeType by remember { mutableStateOf("") }
+    var uploadError by remember { mutableStateOf("") }
 
     val MATERIAL_TYPES = listOf(
         "LECTURE_NOTES" to strings.materialsTypeLectureNotes,
@@ -70,26 +82,22 @@ fun CourseMaterialsScreen() {
             uploadFileUri = uri
             context.contentResolver.query(uri, null, null, null, null)?.use {
                 if (it.moveToFirst()) {
-                    val col = it.getColumnIndex("_display_name")
-                    if (col != -1) uploadFileName = it.getString(col)
+                    val nameCol = it.getColumnIndex("_display_name")
+                    if (nameCol != -1) uploadFileName = it.getString(nameCol)
+                    try {
+                        val sizeCol = it.getColumnIndex("_size")
+                        if (sizeCol != -1 && !it.isNull(sizeCol)) uploadFileSize = it.getLong(sizeCol)
+                    } catch (_: Exception) { }
                 }
             }
             if (uploadFileName.isBlank()) uploadFileName = "file"
+            uploadFileMimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
         }
     }
 
     LaunchedEffect(Unit) { viewModel.load(null) }
     LaunchedEffect(filterCourse) { viewModel.load(filterCourse) }
-
-    val typeIcon = @Composable { type: String ->
-        when (type) {
-            "LECTURE_NOTES" -> Icon(Icons.Default.MenuBook, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-            "ASSIGNMENT"    -> Icon(Icons.Default.Assignment, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.tertiary)
-            "EXAM"          -> Icon(Icons.Default.Quiz, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
-            "RESOURCE"      -> Icon(Icons.Default.Link, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.secondary)
-            else            -> Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(20.dp), tint = Color.Gray)
-        }
-    }
+    LaunchedEffect(showUpload) { if (showUpload) uploadError = "" }
 
     Scaffold(
         topBar = {
@@ -146,34 +154,23 @@ fun CourseMaterialsScreen() {
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     items(materials, key = { it.id }) { mat ->
-                        Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(2.dp)) {
-                            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                typeIcon(mat.material_type)
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(mat.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                    Text("${mat.course_code} · ${mat.material_type_display}", fontSize = 12.sp, color = Color.Gray)
-                                    Text(mat.uploaded_by_name, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                        MaterialCard(
+                            material = mat,
+                            canDelete = canUpload,
+                            onDownload = {
+                                try {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(mat.file_url))
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, strings.materialsCannotOpen, Toast.LENGTH_SHORT).show()
                                 }
-                                if (mat.file_url != null) {
-                                    IconButton(onClick = {
-                                        try {
-                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(mat.file_url))
-                                            context.startActivity(intent)
-                                        } catch (_: Exception) {
-                                            Toast.makeText(context, strings.materialsCannotOpen, Toast.LENGTH_SHORT).show()
-                                        }
-                                    }) { Icon(Icons.Default.Download, strings.materialsDownload, tint = MaterialTheme.colorScheme.primary) }
-                                }
-                                if (canUpload) {
-                                    IconButton(onClick = {
-                                        viewModel.delete(mat.id) {
-                                            Toast.makeText(context, strings.materialsDeleteFailed, Toast.LENGTH_SHORT).show()
-                                        }
-                                    }) { Icon(Icons.Default.Delete, strings.delete, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) }
+                            },
+                            onDelete = {
+                                viewModel.delete(mat.id) {
+                                    Toast.makeText(context, strings.materialsDeleteFailed, Toast.LENGTH_SHORT).show()
                                 }
                             }
-                        }
+                        )
                     }
                 }
             }
@@ -181,94 +178,196 @@ fun CourseMaterialsScreen() {
     }
 
     if (showUpload) {
-        AlertDialog(
+        Dialog(
             onDismissRequest = { if (!isUploading) showUpload = false },
-            title = { Text(strings.materialsUpload) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = uploadTitle, onValueChange = { uploadTitle = it }, label = { Text(strings.materialsHeadline) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    OutlinedTextField(value = uploadDesc, onValueChange = { uploadDesc = it }, label = { Text(strings.materialsDescription) }, modifier = Modifier.fillMaxWidth(), maxLines = 2)
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.9f).imePadding(),
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = AlertDialogDefaults.TonalElevation,
+                color = AlertDialogDefaults.containerColor
+            ) {
+                Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 20.dp)) {
+                    Text(strings.materialsUpload, style = MaterialTheme.typography.headlineSmall)
+                    Spacer(Modifier.height(12.dp))
 
-                    ExposedDropdownMenuBox(expanded = courseExpanded, onExpandedChange = { courseExpanded = !courseExpanded }) {
-                        OutlinedTextField(
-                            value = courses.find { it.id.toString() == uploadCourseId }?.let { "${it.course_code} – ${it.course_name}" } ?: strings.materialsSelectCourse,
-                            onValueChange = {}, readOnly = true, label = { Text(strings.courseLabel) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = courseExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(expanded = courseExpanded, onDismissRequest = { courseExpanded = false }) {
-                            courses.forEach { c ->
-                                DropdownMenuItem(text = { Text("${c.course_code} – ${c.course_name}") }, onClick = { uploadCourseId = c.id.toString(); courseExpanded = false })
+                    // Scrollable form area
+                    Column(
+                        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedTextField(value = uploadTitle, onValueChange = { uploadTitle = it; uploadError = "" }, label = { Text(strings.materialsHeadline) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        OutlinedTextField(value = uploadDesc, onValueChange = { uploadDesc = it }, label = { Text(strings.materialsDescription) }, modifier = Modifier.fillMaxWidth(), maxLines = 2)
+                        ExposedDropdownMenuBox(expanded = courseExpanded, onExpandedChange = { courseExpanded = !courseExpanded }) {
+                            OutlinedTextField(
+                                value = courses.find { it.id.toString() == uploadCourseId }?.let { "${it.course_code} – ${it.course_name}" } ?: strings.materialsSelectCourse,
+                                onValueChange = {}, readOnly = true, label = { Text(strings.courseLabel) },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = courseExpanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(expanded = courseExpanded, onDismissRequest = { courseExpanded = false }) {
+                                courses.forEach { c ->
+                                    DropdownMenuItem(text = { Text("${c.course_code} – ${c.course_name}") }, onClick = { uploadCourseId = c.id.toString(); courseExpanded = false; uploadError = "" })
+                                }
+                            }
+                        }
+                        ExposedDropdownMenuBox(expanded = typeExpanded, onExpandedChange = { typeExpanded = !typeExpanded }) {
+                            OutlinedTextField(
+                                value = MATERIAL_TYPES.find { it.first == uploadType }?.second ?: uploadType,
+                                onValueChange = {}, readOnly = true, label = { Text(strings.materialsType) },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
+                                MATERIAL_TYPES.forEach { (code, label) ->
+                                    DropdownMenuItem(text = { Text(label) }, onClick = { uploadType = code; typeExpanded = false })
+                                }
+                            }
+                        }
+                        if (uploadFileUri == null) {
+                            OutlinedButton(onClick = { filePicker.launch("*/*") }, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(strings.materialsFileSelect, maxLines = 1)
+                            }
+                        } else {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    if (uploadFileMimeType.startsWith("image/")) {
+                                        AsyncImage(
+                                            model = uploadFileUri,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(60.dp).clip(MaterialTheme.shapes.medium),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Surface(
+                                            color = fileMimeColor(uploadFileMimeType).copy(alpha = 0.15f),
+                                            shape = MaterialTheme.shapes.medium
+                                        ) {
+                                            Icon(
+                                                fileMimeIcon(uploadFileMimeType),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(60.dp).padding(14.dp),
+                                                tint = fileMimeColor(uploadFileMimeType)
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(uploadFileName, fontWeight = FontWeight.Medium, fontSize = 13.sp, maxLines = 2, lineHeight = 18.sp)
+                                        if (uploadFileSize > 0) Text(formatFileSize(uploadFileSize), fontSize = 12.sp, color = Color.Gray)
+                                        Text(fileMimeLabel(uploadFileMimeType), fontSize = 11.sp, color = fileMimeColor(uploadFileMimeType))
+                                    }
+                                    TextButton(onClick = { filePicker.launch("*/*") }) {
+                                        Text("Değiştir", fontSize = 12.sp)
+                                    }
+                                }
                             }
                         }
                     }
 
-                    ExposedDropdownMenuBox(expanded = typeExpanded, onExpandedChange = { typeExpanded = !typeExpanded }) {
-                        OutlinedTextField(
-                            value = MATERIAL_TYPES.find { it.first == uploadType }?.second ?: uploadType,
-                            onValueChange = {}, readOnly = true, label = { Text(strings.materialsType) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
-                            MATERIAL_TYPES.forEach { (code, label) ->
-                                DropdownMenuItem(text = { Text(label) }, onClick = { uploadType = code; typeExpanded = false })
-                            }
-                        }
+                    // Error text — always visible, below form
+                    if (uploadError.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(uploadError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp, modifier = Modifier.fillMaxWidth())
                     }
 
-                    OutlinedButton(onClick = { filePicker.launch("*/*") }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(if (uploadFileName.isBlank()) strings.materialsFileSelect else uploadFileName, maxLines = 1)
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val uri = uploadFileUri ?: return@Button
-                        if (uploadTitle.isBlank() || uploadCourseId.isBlank()) {
-                            Toast.makeText(context, strings.materialsTitleRequired, Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-                        val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                        val allowedMimes = setOf(
-                            "application/pdf", "image/jpeg", "image/png", "image/gif",
-                            "application/msword",
-                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            "application/vnd.ms-powerpoint",
-                            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                            "application/vnd.ms-excel",
-                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            "text/plain", "application/zip", "application/x-zip-compressed"
-                        )
-                        if (mimeType !in allowedMimes) { Toast.makeText(context, strings.materialsUnsupportedType, Toast.LENGTH_SHORT).show(); return@Button }
-                        val fileSize = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
-                        if (fileSize > 50 * 1024 * 1024L) { Toast.makeText(context, strings.materialsFileTooLarge, Toast.LENGTH_SHORT).show(); return@Button }
-                        val bytes = context.contentResolver.openInputStream(uri)?.readBytes() ?: return@Button
-                        val filePart = MultipartBody.Part.createFormData("file", uploadFileName, bytes.toRequestBody(mimeType.toMediaTypeOrNull()))
-                        viewModel.upload(
-                            filePart = filePart,
-                            course = uploadCourseId.toRequestBody("text/plain".toMediaTypeOrNull()),
-                            title = uploadTitle.toRequestBody("text/plain".toMediaTypeOrNull()),
-                            description = uploadDesc.toRequestBody("text/plain".toMediaTypeOrNull()),
-                            materialType = uploadType.toRequestBody("text/plain".toMediaTypeOrNull()),
-                            onSuccess = {
-                                showUpload = false
-                                uploadTitle = ""; uploadDesc = ""; uploadCourseId = ""; uploadFileName = ""; uploadFileUri = null
-                                Toast.makeText(context, strings.materialsUploaded, Toast.LENGTH_SHORT).show()
+                    // Action buttons — always visible at bottom
+                    Spacer(Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = {
+                            showUpload = false
+                            uploadTitle = ""; uploadDesc = ""; uploadCourseId = ""
+                            uploadFileName = ""; uploadFileUri = null
+                            uploadFileSize = 0L; uploadFileMimeType = ""; uploadError = ""
+                        }) { Text(strings.cancel) }
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                uploadError = ""
+                                val uri = uploadFileUri
+                                when {
+                                    uri == null -> { uploadError = "Lütfen önce bir dosya seçin."; return@Button }
+                                    uploadTitle.isBlank() -> { uploadError = strings.materialsTitleRequired; return@Button }
+                                    uploadCourseId.isBlank() -> { uploadError = strings.materialsTitleRequired; return@Button }
+                                }
+                                val mimeType = context.contentResolver.getType(uri!!) ?: "application/octet-stream"
+                                val bytes = try {
+                                    context.contentResolver.openInputStream(uri)?.readBytes()
+                                } catch (e: Exception) {
+                                    uploadError = "Dosya okunamadı: ${e.localizedMessage}"; return@Button
+                                }
+                                if (bytes == null) { uploadError = "Dosya okunamadı. Tekrar deneyin."; return@Button }
+                                val filePart = MultipartBody.Part.createFormData("file", uploadFileName, bytes.toRequestBody(mimeType.toMediaTypeOrNull()))
+                                viewModel.upload(
+                                    filePart = filePart,
+                                    course = uploadCourseId.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                    title = uploadTitle.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                    description = uploadDesc.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                    materialType = uploadType.toRequestBody("text/plain".toMediaTypeOrNull()),
+                                    onSuccess = {
+                                        showUpload = false
+                                        uploadTitle = ""; uploadDesc = ""; uploadCourseId = ""
+                                        uploadFileName = ""; uploadFileUri = null
+                                        uploadFileSize = 0L; uploadFileMimeType = ""; uploadError = ""
+                                        Toast.makeText(context, strings.materialsUploaded, Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = { err -> uploadError = "Yükleme hatası: $err" }
+                                )
                             },
-                            onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
-                        )
-                    },
-                    enabled = !isUploading
-                ) {
-                    if (isUploading) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                    else Text(strings.upload)
+                            enabled = !isUploading
+                        ) {
+                            if (isUploading) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                            else Text(strings.upload)
+                        }
+                    }
                 }
-            },
-            dismissButton = { TextButton(onClick = { showUpload = false }) { Text(strings.cancel) } }
-        )
+            }
+        }
     }
+}
+
+private fun fileMimeIcon(mimeType: String): ImageVector = when {
+    mimeType.startsWith("image/")   -> Icons.Default.Image
+    mimeType == "application/pdf"   -> Icons.Default.Description
+    mimeType.startsWith("video/")   -> Icons.Default.PlayCircle
+    mimeType.startsWith("audio/")   -> Icons.Default.MusicNote
+    mimeType.startsWith("text/")    -> Icons.Default.Article
+    else                            -> Icons.Default.AttachFile
+}
+
+private fun fileMimeColor(mimeType: String): Color = when {
+    mimeType.startsWith("image/")                                     -> Color(0xFF1976D2)
+    mimeType == "application/pdf"                                     -> Color(0xFFD32F2F)
+    mimeType.contains("word") || mimeType.contains("document")       -> Color(0xFF1565C0)
+    mimeType.contains("sheet") || mimeType.contains("excel")         -> Color(0xFF2E7D32)
+    mimeType.contains("presentation") || mimeType.contains("powerpoint") -> Color(0xFFE65100)
+    mimeType.startsWith("text/")                                      -> Color(0xFF455A64)
+    mimeType.startsWith("video/")                                     -> Color(0xFF6A1B9A)
+    mimeType.startsWith("audio/")                                     -> Color(0xFF00838F)
+    else                                                              -> Color(0xFF757575)
+}
+
+private fun fileMimeLabel(mimeType: String): String = when {
+    mimeType == "application/pdf"                                     -> "PDF"
+    mimeType.contains("word") || mimeType.contains("document")       -> "Word"
+    mimeType.contains("sheet") || mimeType.contains("excel")         -> "Excel"
+    mimeType.contains("presentation") || mimeType.contains("powerpoint") -> "PowerPoint"
+    mimeType.startsWith("image/")  -> mimeType.removePrefix("image/").uppercase()
+    mimeType.startsWith("text/")   -> "Metin"
+    mimeType.startsWith("video/")  -> "Video"
+    mimeType.startsWith("audio/")  -> "Ses"
+    else -> mimeType.substringAfterLast('/').take(12).uppercase()
+}
+
+private fun formatFileSize(bytes: Long): String = when {
+    bytes <= 0          -> ""
+    bytes < 1_024       -> "$bytes B"
+    bytes < 1_048_576   -> "${bytes / 1_024} KB"
+    else                -> "${"%.1f".format(bytes / 1_048_576.0)} MB"
 }

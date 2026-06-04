@@ -19,10 +19,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.bugra.campussync.network.AnnouncementItem
+import com.bugra.campussync.network.CourseItem
 import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.AnnouncementsViewModel
@@ -36,11 +37,12 @@ fun AnnouncementsScreen() {
     val role = tokenManager.getRole() ?: ""
     val canCreate = role.uppercase().let { it.contains("ADMIN") || it.contains("SUPER") || it == "STAFF" || it == "IT" }
 
-    val viewModel: AnnouncementsViewModel = viewModel()
+    val viewModel: AnnouncementsViewModel = hiltViewModel()
     val state by viewModel.state.collectAsState()
     val announcements = state.announcements
     val isLoading = state.isLoading
     val readIds = state.readIds
+    val courses = state.courses
 
     var showCreateDialog by remember { mutableStateOf(false) }
 
@@ -101,10 +103,11 @@ fun AnnouncementsScreen() {
 
     if (showCreateDialog) {
         CreateAnnouncementDialog(
+            courses = courses,
             onDismiss = { showCreateDialog = false },
-            onCreate = { title, body, audience ->
+            onCreate = { title, body, audience, courseId ->
                 viewModel.create(
-                    title, body, audience,
+                    title, body, audience, courseId,
                     onSuccess = {
                         showCreateDialog = false
                         Toast.makeText(context, strings.announcementsPublished, Toast.LENGTH_SHORT).show()
@@ -152,6 +155,21 @@ private fun AnnouncementCard(
                     modifier = Modifier.weight(1f)
                 )
             }
+            if (!announcement.course_code.isNullOrBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Text(
+                        announcement.course_code,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
             Spacer(Modifier.height(6.dp))
             Text(announcement.body, fontSize = 13.sp, color = Color.Gray)
             Spacer(Modifier.height(8.dp))
@@ -174,13 +192,16 @@ private fun AnnouncementCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CreateAnnouncementDialog(
+    courses: List<CourseItem>,
     onDismiss: () -> Unit,
-    onCreate: (String, String, String) -> Unit
+    onCreate: (String, String, String, Int?) -> Unit
 ) {
     var title    by remember { mutableStateOf("") }
     var body     by remember { mutableStateOf("") }
     var audience by remember { mutableStateOf("ALL") }
     var audienceExpanded by remember { mutableStateOf(false) }
+    var selectedCourse by remember { mutableStateOf<CourseItem?>(null) }
+    var courseExpanded by remember { mutableStateOf(false) }
 
     val strings = LocalAppStrings.current
     val audienceOptions = listOf(
@@ -251,8 +272,42 @@ private fun CreateAnnouncementDialog(
                         audienceOptions.forEach { (code, label) ->
                             DropdownMenuItem(
                                 text = { Text(label) },
-                                onClick = { audience = code; audienceExpanded = false }
+                                onClick = {
+                                    audience = code
+                                    audienceExpanded = false
+                                    if (code != "STUDENT") selectedCourse = null
+                                }
                             )
+                        }
+                    }
+                }
+                if (audience == "STUDENT" && courses.isNotEmpty()) {
+                    ExposedDropdownMenuBox(
+                        expanded = courseExpanded,
+                        onExpandedChange = { courseExpanded = !courseExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedCourse?.let { "${it.course_code} – ${it.course_name}" } ?: strings.announcementsAllCourses,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(strings.announcementsCourseOptional) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = courseExpanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = courseExpanded,
+                            onDismissRequest = { courseExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(strings.announcementsAllCourses) },
+                                onClick = { selectedCourse = null; courseExpanded = false }
+                            )
+                            courses.forEach { course ->
+                                DropdownMenuItem(
+                                    text = { Text("${course.course_code} – ${course.course_name}") },
+                                    onClick = { selectedCourse = course; courseExpanded = false }
+                                )
+                            }
                         }
                     }
                 }
@@ -264,7 +319,7 @@ private fun CreateAnnouncementDialog(
                     TextButton(onClick = onDismiss) { Text(strings.cancel) }
                     Spacer(Modifier.width(8.dp))
                     Button(
-                        onClick = { if (title.isNotBlank() && body.isNotBlank()) onCreate(title, body, audience) },
+                        onClick = { if (title.isNotBlank() && body.isNotBlank()) onCreate(title, body, audience, selectedCourse?.id) },
                         enabled = title.isNotBlank() && body.isNotBlank()
                     ) { Text(strings.announcementsPublish) }
                 }

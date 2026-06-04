@@ -15,7 +15,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.bugra.campussync.network.ChatContact
 import com.bugra.campussync.network.ChatConversation
 import com.bugra.campussync.utils.LocalAppStrings
@@ -23,9 +25,11 @@ import com.bugra.campussync.viewmodels.ChatInboxViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatInboxScreen(onOpenChat: (Int, String) -> Unit) {
+fun ChatInboxScreen(
+    onOpenChat: (Int, String) -> Unit,
+    viewModel: ChatInboxViewModel = hiltViewModel()
+) {
     val strings = LocalAppStrings.current
-    val viewModel: ChatInboxViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     val conversations = state.conversations
     val contacts = state.contacts
@@ -169,11 +173,18 @@ private fun NewChatDialog(
         it.username.contains(searchQuery, ignoreCase = true)
     }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(strings.chatInboxNewChat) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.95f).wrapContentHeight().imePadding(),
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = AlertDialogDefaults.TonalElevation,
+            color = AlertDialogDefaults.containerColor
+        ) {
+            Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(strings.chatInboxNewChat, style = MaterialTheme.typography.headlineSmall)
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchChange,
@@ -194,9 +205,10 @@ private fun NewChatDialog(
                         item { Text(strings.chatInboxNotFound, color = Color.Gray, modifier = Modifier.padding(8.dp)) }
                     }
                 }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text(strings.cancel) }
+                }
             }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text(strings.cancel) } }
-    )
+        }
+    }
 }

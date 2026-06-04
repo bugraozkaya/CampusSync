@@ -19,7 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.viewmodels.AvailabilityViewModel
 
@@ -27,10 +27,11 @@ val AVAILABILITY_DAY_CODES = listOf("Monday", "Tuesday", "Wednesday", "Thursday"
 val AVAILABILITY_HOURS = listOf("08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00")
 
 @Composable
-fun AvailabilityScreen() {
+fun AvailabilityScreen(
+    viewModel: AvailabilityViewModel = hiltViewModel()
+) {
     val context = LocalContext.current
     val strings = LocalAppStrings.current
-    val viewModel: AvailabilityViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     val busySlots = state.busySlots
     val isLoading = state.isLoading

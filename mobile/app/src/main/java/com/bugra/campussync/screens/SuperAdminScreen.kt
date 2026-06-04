@@ -20,14 +20,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.viewmodels.SuperAdminViewModel
 
 @Composable
 fun SuperAdminScreen() {
     val strings = LocalAppStrings.current
-    val viewModel: SuperAdminViewModel = viewModel()
+    val viewModel: SuperAdminViewModel = hiltViewModel()
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf(strings.superAdminInstitutions, strings.superAdminAdminAssign)
 

@@ -18,18 +18,21 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.ChangePasswordViewModel
 
 @Composable
-fun ChangePasswordScreen(onPasswordChanged: () -> Unit, onLogout: (() -> Unit)? = null) {
+fun ChangePasswordScreen(
+    onPasswordChanged: () -> Unit,
+    onLogout: (() -> Unit)? = null,
+    viewModel: ChangePasswordViewModel = hiltViewModel()
+) {
     val context = LocalContext.current
     val strings = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
     val mustChange = remember { tokenManager.getMustChangePassword() }
-    val viewModel: ChangePasswordViewModel = viewModel()
     val state by viewModel.state.collectAsState()
 
     var currentPassword by remember { mutableStateOf("") }

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Institution, Department, Classroom, Course, Schedule, Unavailability, StudentEnrollment, Announcement, UserNotification, AttendanceSession, AttendanceRecord, ChatMessage, CourseMaterial, Grade
+from .models import Institution, Department, Classroom, Course, Schedule, Unavailability, StudentEnrollment, Announcement, UserNotification, AttendanceSession, AttendanceRecord, ChatMessage, CourseMaterial, Grade, CourseNote
 
 User = get_user_model()
 
@@ -78,7 +78,6 @@ class ScheduleSerializer(serializers.ModelSerializer):
     lecturer_username = serializers.SerializerMethodField()
 
     classroom_name = serializers.SerializerMethodField()
-    classroom_code = serializers.SerializerMethodField()
     classroom_type = serializers.SerializerMethodField()
 
     def get_lecturer_id_val(self, obj):
@@ -102,9 +101,6 @@ class ScheduleSerializer(serializers.ModelSerializer):
     def get_classroom_name(self, obj):
         return obj.classroom.room_code if obj.classroom else ''
 
-    def get_classroom_code(self, obj):
-        return obj.classroom.room_code if obj.classroom else ''
-
     def get_classroom_type(self, obj):
         return obj.classroom.classroom_type if obj.classroom else ''
 
@@ -114,7 +110,7 @@ class ScheduleSerializer(serializers.ModelSerializer):
             'id',
             'course', 'course_name', 'course_code', 'has_lab',
             'lecturer', 'lecturer_id_val', 'lecturer_name', 'lecturer_username',
-            'classroom', 'classroom_name', 'classroom_code', 'classroom_type',
+            'classroom', 'classroom_name', 'classroom_type',
             'day_of_week', 'start_time', 'end_time', 'session_type',
         ]
 
@@ -136,11 +132,13 @@ class AnnouncementSerializer(serializers.ModelSerializer):
     created_by_name = serializers.SerializerMethodField()
     unread_count    = serializers.SerializerMethodField()
     is_read         = serializers.SerializerMethodField()
+    course_name     = serializers.CharField(source='course.course_name', read_only=True, default=None)
+    course_code     = serializers.CharField(source='course.course_code', read_only=True, default=None)
 
     class Meta:
         model  = Announcement
-        fields = ['id', 'title', 'body', 'audience', 'institution', 'created_by',
-                  'created_by_name', 'created_at', 'is_active', 'unread_count', 'is_read']
+        fields = ['id', 'title', 'body', 'audience', 'institution', 'course', 'course_name', 'course_code',
+                  'created_by', 'created_by_name', 'created_at', 'is_active', 'unread_count', 'is_read']
         read_only_fields = ['created_by', 'created_at', 'institution']
 
     def get_created_by_name(self, obj):
@@ -277,3 +275,15 @@ class GradeSerializer(serializers.ModelSerializer):
         if obj.max_score and obj.max_score > 0:
             return round(float(obj.score) / float(obj.max_score) * 100, 1)
         return 0
+
+
+class CourseNoteSerializer(serializers.ModelSerializer):
+    author_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = CourseNote
+        fields = ['id', 'course', 'author', 'author_name', 'title', 'content', 'created_at', 'updated_at']
+        read_only_fields = ['author', 'created_at', 'updated_at']
+
+    def get_author_name(self, obj):
+        return f"{obj.author.first_name} {obj.author.last_name}".strip() or obj.author.username

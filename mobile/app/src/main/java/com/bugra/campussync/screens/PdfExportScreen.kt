@@ -16,8 +16,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.bugra.campussync.network.RetrofitClient
 import com.bugra.campussync.utils.LocalAppStrings
+import com.bugra.campussync.viewmodels.HomeViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -26,22 +26,29 @@ import java.io.FileOutputStream
 
 @Composable
 fun PdfExportButton(
+    viewModel: HomeViewModel,
     exportType: String = "institution",
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val strings = LocalAppStrings.current
     val scope = rememberCoroutineScope()
-    var isDownloading by remember { mutableStateOf(false) }
+    val state by viewModel.state.collectAsState()
+    val isDownloading = state.isExporting
+
+    LaunchedEffect(state.exportError) {
+        state.exportError?.let {
+            Toast.makeText(context, "${strings.pdfDownloadFailed}: $it", Toast.LENGTH_SHORT).show()
+            viewModel.clearExportError()
+        }
+    }
 
     Button(
         onClick = {
-            isDownloading = true
-            scope.launch {
-                try {
-                    val responseBody = RetrofitClient.apiService.exportSchedulePdf(type = exportType)
+            viewModel.exportPdf(exportType) { bytes ->
+                scope.launch {
                     val saved = withContext(Dispatchers.IO) {
-                        saveToDownloads(context, responseBody.bytes(), "ders_programi.pdf")
+                        saveToDownloads(context, bytes, "ders_programi.pdf")
                     }
                     if (saved != null) {
                         Toast.makeText(context, strings.pdfSaved, Toast.LENGTH_LONG).show()
@@ -49,10 +56,6 @@ fun PdfExportButton(
                     } else {
                         Toast.makeText(context, strings.pdfSaveFailed, Toast.LENGTH_SHORT).show()
                     }
-                } catch (e: Exception) {
-                    Toast.makeText(context, strings.pdfDownloadFailed + e.message, Toast.LENGTH_SHORT).show()
-                } finally {
-                    isDownloading = false
                 }
             }
         },
@@ -92,7 +95,7 @@ private fun saveToDownloads(context: Context, bytes: ByteArray, fileName: String
         } else {
             @Suppress("DEPRECATION")
             val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            dir.mkdirs()
+            if (!dir.exists()) dir.mkdirs()
             val file = File(dir, fileName)
             FileOutputStream(file).use { it.write(bytes) }
             Uri.fromFile(file)

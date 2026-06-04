@@ -5,7 +5,7 @@ from .views import (
     CourseViewSet, ScheduleViewSet, ClassroomViewSet, UnavailabilityViewSet,
     StudentEnrollmentViewSet, AnnouncementViewSet, FCMTokenViewSet,
     AttendanceViewSet, export_schedule_pdf,
-    ChatViewSet, CourseMaterialViewSet, GradeViewSet, forgot_password,
+    ChatViewSet, CourseMaterialViewSet, GradeViewSet, forgot_password, CourseNoteViewSet,
 )
 
 router = DefaultRouter()
@@ -23,6 +23,7 @@ router.register(r'attendance', AttendanceViewSet, basename='attendance')
 router.register(r'chat', ChatViewSet, basename='chat')
 router.register(r'materials', CourseMaterialViewSet, basename='materials')
 router.register(r'grades', GradeViewSet, basename='grades')
+router.register(r'notes', CourseNoteViewSet, basename='notes')
 
 urlpatterns = [
     path('', include(router.urls)),

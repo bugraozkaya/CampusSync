@@ -22,12 +22,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.bugra.campussync.network.RetrofitClient
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.AuthViewModel
-import kotlinx.coroutines.launch
 
 @Composable
 fun AuthScreen(onLoginSuccess: (mustChangePassword: Boolean) -> Unit) {
@@ -36,7 +36,7 @@ fun AuthScreen(onLoginSuccess: (mustChangePassword: Boolean) -> Unit) {
     val focusManager = LocalFocusManager.current
     val strings = LocalAppStrings.current
 
-    val viewModel: AuthViewModel = viewModel()
+    val viewModel: AuthViewModel = hiltViewModel()
     val state by viewModel.state.collectAsState()
     val isLoading = state.isLoading
 
@@ -46,10 +46,6 @@ fun AuthScreen(onLoginSuccess: (mustChangePassword: Boolean) -> Unit) {
 
     var showForgotDialog by remember { mutableStateOf(false) }
     var forgotUsername by remember { mutableStateOf("") }
-    var forgotLoading by remember { mutableStateOf(false) }
-    var forgotResult by remember { mutableStateOf<String?>(null) }
-    var forgotError by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
 
     // Consume login result — save to TokenManager and navigate
     LaunchedEffect(state.loginResult) {
@@ -71,11 +67,11 @@ fun AuthScreen(onLoginSuccess: (mustChangePassword: Boolean) -> Unit) {
     val canLogin = username.isNotBlank() && password.isNotBlank() && !isLoading
 
     if (showForgotDialog) {
-        if (forgotResult != null) {
+        if (state.forgotPasswordResult != null) {
             AlertDialog(
                 onDismissRequest = {
                     showForgotDialog = false
-                    forgotResult = null
+                    viewModel.clearForgotState()
                     forgotUsername = ""
                 },
                 title = { Text("Geçici Şifreniz") },
@@ -87,7 +83,7 @@ fun AuthScreen(onLoginSuccess: (mustChangePassword: Boolean) -> Unit) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                             Text(
-                                forgotResult!!,
+                                state.forgotPasswordResult!!,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
@@ -100,65 +96,55 @@ fun AuthScreen(onLoginSuccess: (mustChangePassword: Boolean) -> Unit) {
                 confirmButton = {
                     Button(onClick = {
                         username = forgotUsername
-                        password = forgotResult ?: ""
+                        password = state.forgotPasswordResult ?: ""
                         showForgotDialog = false
-                        forgotResult = null
+                        viewModel.clearForgotState()
                         forgotUsername = ""
                     }) { Text("Giriş Yap") }
                 }
             )
         } else {
-            AlertDialog(
-                onDismissRequest = { showForgotDialog = false; forgotError = null },
-                title = { Text("Şifremi Unuttum") },
-                text = {
-                    Column {
+            Dialog(
+                onDismissRequest = { showForgotDialog = false; viewModel.clearForgotState() },
+                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(0.95f).wrapContentHeight().imePadding(),
+                    shape = MaterialTheme.shapes.large,
+                    tonalElevation = AlertDialogDefaults.TonalElevation,
+                    color = AlertDialogDefaults.containerColor
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Şifremi Unuttum", style = MaterialTheme.typography.headlineSmall)
                         Text("Kullanıcı adınızı girin, size geçici bir şifre oluşturalım.")
-                        Spacer(modifier = Modifier.height(12.dp))
                         OutlinedTextField(
                             value = forgotUsername,
-                            onValueChange = { forgotUsername = it; forgotError = null },
+                            onValueChange = { forgotUsername = it; viewModel.clearForgotState() },
                             label = { Text(strings.loginUsername) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            isError = forgotError != null
+                            isError = state.forgotPasswordError != null
                         )
-                        if (forgotError != null) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(forgotError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        if (state.forgotPasswordError != null) {
+                            Text(state.forgotPasswordError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { showForgotDialog = false; viewModel.clearForgotState() }) { Text(strings.cancel) }
+                            Spacer(Modifier.width(8.dp))
+                            Button(
+                                onClick = { viewModel.forgotPassword(forgotUsername) },
+                                enabled = forgotUsername.isNotBlank() && !state.isForgotLoading
+                            ) {
+                                if (state.isForgotLoading) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                else Text("Sıfırla")
+                            }
                         }
                     }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                forgotLoading = true
-                                forgotError = null
-                                try {
-                                    val res = RetrofitClient.apiService.forgotPassword(mapOf("username" to forgotUsername.trim()))
-                                    forgotResult = res["temp_password"]
-                                } catch (e: retrofit2.HttpException) {
-                                    val body = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
-                                    val match = body?.let { Regex(""""error"\s*:\s*"([^"]+)"""").find(it) }
-                                    forgotError = match?.groupValues?.get(1) ?: "Bir hata oluştu."
-                                } catch (e: Exception) {
-                                    forgotError = "Sunucuya ulaşılamıyor."
-                                } finally {
-                                    forgotLoading = false
-                                }
-                            }
-                        },
-                        enabled = forgotUsername.isNotBlank() && !forgotLoading
-                    ) {
-                        if (forgotLoading) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                        else Text("Sıfırla")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showForgotDialog = false; forgotError = null }) { Text(strings.cancel) }
                 }
-            )
+            }
         }
     }
 

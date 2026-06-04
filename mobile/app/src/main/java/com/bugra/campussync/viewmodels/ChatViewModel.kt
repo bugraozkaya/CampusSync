@@ -1,17 +1,19 @@
 package com.bugra.campussync.viewmodels
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.bugra.campussync.network.ChatContact
-import com.bugra.campussync.network.ChatConversation
-import com.bugra.campussync.network.ChatMessage
-import com.bugra.campussync.network.RetrofitClient
+import com.bugra.campussync.network.*
+import com.bugra.campussync.repository.ChatRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class ChatInboxUiState(
     val isLoading: Boolean = true,
@@ -24,20 +26,34 @@ data class ChatUiState(
     val isSending: Boolean = false
 )
 
-class ChatInboxViewModel : ViewModel() {
+@HiltViewModel
+class ChatInboxViewModel @Inject constructor(
+    private val repository: ChatRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(ChatInboxUiState())
     val state: StateFlow<ChatInboxUiState> = _state.asStateFlow()
 
-    init { loadConversations() }
+    init {
+        loadConversations()
+        viewModelScope.launch {
+            while (true) {
+                delay(5000)
+                val result = repository.getChatInbox()
+                if (result is NetworkResult.Success) {
+                    _state.update { it.copy(conversations = result.data) }
+                }
+            }
+        }
+    }
 
     fun loadConversations() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
-            try {
-                val convs = RetrofitClient.apiService.getChatInbox()
-                _state.update { it.copy(isLoading = false, conversations = convs) }
-            } catch (_: Exception) {
+            val result = repository.getChatInbox()
+            if (result is NetworkResult.Success) {
+                _state.update { it.copy(isLoading = false, conversations = result.data) }
+            } else {
                 _state.update { it.copy(isLoading = false) }
             }
         }
@@ -45,15 +61,18 @@ class ChatInboxViewModel : ViewModel() {
 
     fun loadContacts() {
         viewModelScope.launch {
-            try {
-                val contacts = RetrofitClient.apiService.getChatContacts()
-                _state.update { it.copy(contacts = contacts) }
-            } catch (_: Exception) {}
+            val result = repository.getChatContacts()
+            if (result is NetworkResult.Success) {
+                _state.update { it.copy(contacts = result.data) }
+            }
         }
     }
 }
 
-class ChatViewModel : ViewModel() {
+@HiltViewModel
+class ChatViewModel @Inject constructor(
+    private val repository: ChatRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -72,10 +91,10 @@ class ChatViewModel : ViewModel() {
     }
 
     private suspend fun loadMessages() {
-        try {
-            val fetched = RetrofitClient.apiService.getChatMessages(currentPartnerId)
-            _state.update { it.copy(messages = fetched) }
-        } catch (_: Exception) {}
+        val result = repository.getChatMessages(currentPartnerId)
+        if (result is NetworkResult.Success) {
+            _state.update { it.copy(messages = result.data) }
+        }
     }
 
     fun sendMessage(
@@ -85,15 +104,42 @@ class ChatViewModel : ViewModel() {
         if (text.isBlank()) return
         viewModelScope.launch {
             _state.update { it.copy(isSending = true) }
-            try {
-                RetrofitClient.apiService.sendChatMessage(mapOf("receiver_id" to partnerId, "content" to text))
-                loadMessages()
-                onSuccess()
-            } catch (e: Exception) {
-                onError("Gönderilemedi: ${e.message}")
-            } finally {
-                _state.update { it.copy(isSending = false) }
+            val result = repository.sendChatMessage(partnerId, text)
+            when (result) {
+                is NetworkResult.Success -> {
+                    loadMessages()
+                    onSuccess()
+                }
+                is NetworkResult.Error -> {
+                    Log.e("ChatViewModel", "sendMessage failed: partnerId=$partnerId, error=${result.message}")
+                    onError(result.message)
+                }
+                is NetworkResult.Loading -> { }
             }
+            _state.update { it.copy(isSending = false) }
+        }
+    }
+
+    fun sendFile(
+        partnerId: Int, content: String,
+        file: okhttp3.MultipartBody.Part,
+        onSuccess: () -> Unit, onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _state.update { it.copy(isSending = true) }
+            val result = repository.sendChatMessageWithFile(partnerId, content, file)
+            when (result) {
+                is NetworkResult.Success -> {
+                    loadMessages()
+                    onSuccess()
+                }
+                is NetworkResult.Error -> {
+                    onError(result.message)
+                }
+                is NetworkResult.Loading -> { }
+                else -> {}
+            }
+            _state.update { it.copy(isSending = false) }
         }
     }
 }

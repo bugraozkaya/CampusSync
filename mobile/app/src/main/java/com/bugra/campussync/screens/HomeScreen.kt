@@ -1,15 +1,16 @@
 package com.bugra.campussync.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.EventNote
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.EventNote
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,15 +21,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.bugra.campussync.network.RetrofitClient
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.bugra.campussync.network.ScheduleItem
 import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.viewmodels.HomeViewModel
 
 @Composable
-fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
+fun HomeScreen(
+    onLogoutClick: () -> Unit, 
+    onNavigateToSettings: () -> Unit,
+    onNavigateToCourseDetail: (Int, String, String) -> Unit
+) {
     val context = LocalContext.current
     val strings = LocalAppStrings.current
     val tokenManager = remember { TokenManager(context) }
@@ -37,23 +41,19 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
 
     val firstName = tokenManager.getFirstName()
     val lastName = tokenManager.getLastName()
-    val apiTitle = tokenManager.getTitle()
-    val nameSurname = tokenManager.getNameSurname() ?: ""
+    val title = tokenManager.getTitle()
     val department = tokenManager.getDepartment() ?: ""
-    val position = tokenManager.getPosition() ?: ""
     val isProfileComplete = tokenManager.isProfileComplete()
 
-    val displayName = when {
-        firstName != null && lastName != null ->
-            listOfNotNull(apiTitle?.ifBlank { null }, firstName, lastName).joinToString(" ")
-        nameSurname.isNotEmpty() -> nameSurname
-        else -> tokenManager.getUsername() ?: ""
+    val displayName = remember(firstName, lastName, title) {
+        val full = listOfNotNull(title?.ifBlank { null }, firstName, lastName).joinToString(" ")
+        full.ifBlank { tokenManager.getUsername() ?: "" }
     }
 
     var showProfileDialog by remember { mutableStateOf(!isAdmin && !isProfileComplete) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
 
-    val viewModel: HomeViewModel = viewModel()
+    val viewModel: HomeViewModel = hiltViewModel()
     val state by viewModel.state.collectAsState()
 
     LaunchedEffect(isAdmin) { viewModel.load(isAdmin) }
@@ -79,18 +79,10 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
                 if (department.isNotEmpty()) {
                     Text(text = department, fontSize = 13.sp, color = Color.Gray)
                 }
-                if (position.isNotEmpty()) {
-                    Text(
-                        text = position,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.secondary,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
             }
             IconButton(onClick = { showLogoutConfirm = true }) {
                 Icon(
-                    Icons.Default.Logout,
+                    Icons.AutoMirrored.Filled.Logout,
                     contentDescription = strings.logout,
                     tint = MaterialTheme.colorScheme.error
                 )
@@ -128,7 +120,6 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
                     Button(
                         onClick = {
                             showLogoutConfirm = false
-                            RetrofitClient.authToken = null
                             onLogoutClick()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
@@ -176,7 +167,7 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        "${state.unreadCount} okunmamış duyuru var",
+                        "${state.unreadCount} ${strings.homeUnreadAnnouncements}",
                         modifier = Modifier.padding(12.dp),
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         fontWeight = FontWeight.Medium
@@ -184,30 +175,24 @@ fun HomeScreen(onLogoutClick: () -> Unit, onNavigateToSettings: () -> Unit) {
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            val exportType = if (isAdmin) "institution" else "lecturer"
-            PdfExportButton(
-                exportType = exportType,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-            )
-            Spacer(Modifier.height(8.dp))
+            
             if (isAdmin) {
                 AdminSummaryView(state.adminSummary)
             } else {
-                LecturerHomeView(state.schedules)
+                LecturerHomeView(state.schedules, onNavigateToCourseDetail)
             }
         }
     }
 }
 
 @Composable
-fun ScheduleCard(schedule: ScheduleItem) {
+fun ScheduleCard(schedule: ScheduleItem, onClick: () -> Unit = {}) {
     val strings = LocalAppStrings.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = 6.dp)
+            .clickable { onClick() },
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -236,7 +221,7 @@ fun ScheduleCard(schedule: ScheduleItem) {
             Spacer(modifier = Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Default.EventNote,
+                    Icons.AutoMirrored.Filled.EventNote,
                     null,
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.secondary
@@ -268,13 +253,23 @@ fun ScheduleCard(schedule: ScheduleItem) {
 }
 
 private fun dayLocalName(day: String, strings: com.bugra.campussync.utils.AppStrings): String =
-    when (normalizeDayOfWeek(day)) {
+    when (normalizeHomeDay(day)) {
         "MON" -> strings.dayMonday
         "TUE" -> strings.dayTuesday
         "WED" -> strings.dayWednesday
         "THU" -> strings.dayThursday
         "FRI" -> strings.dayFriday
         else  -> day
+    }
+
+private fun normalizeHomeDay(day: String): String =
+    when (day.uppercase()) {
+        "PAZARTESI", "MONDAY", "MON" -> "MON"
+        "SALI", "TUESDAY", "TUE" -> "TUE"
+        "ÇARŞAMBA", "WEDNESDAY", "WED" -> "WED"
+        "PERŞEMBE", "THURSDAY", "THU" -> "THU"
+        "CUMA", "FRIDAY", "FRI" -> "FRI"
+        else -> day.uppercase().take(3)
     }
 
 @Composable
@@ -353,7 +348,7 @@ fun SummaryCard(title: String, items: List<Map<String, Any>>, nameKey: String = 
 }
 
 @Composable
-fun LecturerHomeView(schedules: List<ScheduleItem>) {
+fun LecturerHomeView(schedules: List<ScheduleItem>, onNavigateToCourseDetail: (Int, String, String) -> Unit) {
     val strings = LocalAppStrings.current
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -381,7 +376,7 @@ fun LecturerHomeView(schedules: List<ScheduleItem>) {
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        Icons.Default.EventNote,
+                        Icons.AutoMirrored.Filled.EventNote,
                         null,
                         modifier = Modifier.size(56.dp),
                         tint = Color.LightGray
@@ -397,7 +392,9 @@ fun LecturerHomeView(schedules: List<ScheduleItem>) {
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(schedules) { schedule ->
-                    ScheduleCard(schedule)
+                    ScheduleCard(schedule, onClick = {
+                        onNavigateToCourseDetail(schedule.courseId, schedule.course_name, schedule.course_code ?: "")
+                    })
                 }
             }
         }

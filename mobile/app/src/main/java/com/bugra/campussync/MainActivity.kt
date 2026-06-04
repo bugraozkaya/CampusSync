@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -16,7 +17,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.runtime.CompositionLocalProvider
-import com.bugra.campussync.network.RetrofitClient
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.toRoute
+import com.bugra.campussync.navigation.Screen
 import com.bugra.campussync.network.SessionManager
 import com.bugra.campussync.screens.*
 import com.bugra.campussync.ui.theme.CampusSyncTheme
@@ -28,12 +31,36 @@ import com.bugra.campussync.utils.ThemePreferences
 import com.bugra.campussync.utils.TokenManager
 import com.bugra.campussync.utils.TurkishStrings
 
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+
+import android.Manifest
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
+
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var themePreferences: ThemePreferences
+
+    @Inject
+    lateinit var tokenManager: TokenManager
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        // Permission granted or denied
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         setContent {
-            val context = LocalContext.current
-            val themePreferences = remember { ThemePreferences(context) }
             val themeMode by themePreferences.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
             val languageCode by themePreferences.languageCode.collectAsState(initial = "tr")
             val strings: AppStrings = if (languageCode == "en") EnglishStrings else TurkishStrings
@@ -44,7 +71,10 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        AppNavigation(themePreferences = themePreferences)
+                        AppNavigation(
+                            themePreferences = themePreferences,
+                            tokenManager = tokenManager
+                        )
                     }
                 }
             }
@@ -53,21 +83,20 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppNavigation(themePreferences: ThemePreferences? = null) {
+fun AppNavigation(
+    themePreferences: ThemePreferences,
+    tokenManager: TokenManager
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val currentDestination = navBackStackEntry?.destination
     val context = LocalContext.current
-
-    // RetrofitClient Application.onCreate'de init edildi; token buradan okunur
-    val tokenManager = remember { TokenManager(context) }
 
     // Token refresh başarısız olunca SessionManager login ekranına yönlendirir
     LaunchedEffect(Unit) {
         SessionManager.logoutEvent.collect {
             tokenManager.clearAll()
-            RetrofitClient.authToken = null
-            navController.navigate("auth") {
+            navController.navigate(Screen.Auth) {
                 popUpTo(0) { inclusive = true }
             }
         }
@@ -79,97 +108,105 @@ fun AppNavigation(themePreferences: ThemePreferences? = null) {
     var userRole by remember { mutableStateOf(tokenManager.getRole() ?: "") }
 
     // Rota değiştiğinde rolü senkronize et
-    LaunchedEffect(currentRoute) {
+    LaunchedEffect(currentDestination) {
         val updatedRole = tokenManager.getRole() ?: ""
         if (updatedRole != userRole) {
             userRole = updatedRole
         }
     }
 
-    // Başlangıç rotasını belirle: token yok → onboarding, mustChange → change_password, diğer → home
-    val startDest = remember {
+    // Başlangıç rotasını belirle
+    val startDest: Any = remember {
         when {
-            tokenManager.getToken() == null -> "onboarding"
-            tokenManager.getMustChangePassword() -> "change_password"
-            (tokenManager.getRole() ?: "").uppercase() == "STUDENT" -> "student_home"
-            (tokenManager.getRole() ?: "").uppercase().contains("SUPER") -> "superadmin"
-            else -> "home"
+            tokenManager.getToken() == null -> Screen.Onboarding
+            tokenManager.getMustChangePassword() -> Screen.ChangePassword
+            (tokenManager.getRole() ?: "").uppercase() == "STUDENT" -> Screen.StudentHome
+            (tokenManager.getRole() ?: "").uppercase().contains("SUPER") -> Screen.SuperAdmin
+            else -> Screen.Home
         }
     }
 
-    // Rol bazlı bottom nav öğeleri
+    // Rol bazlı bottom nav öğeleri (CONSOLIDATED)
     val bottomNavItems = remember(userRole) {
         val role = userRole.uppercase()
         when {
             role.contains("SUPER") ->
-                listOf("superadmin", "users", "settings")
+                listOf(Screen.SuperAdmin, Screen.Users, Screen.Settings)
             role.contains("ADMIN") || role.contains("STAFF") || role.contains("IT") ->
-                listOf("home", "calendar", "classrooms", "data", "announcements", "chat_inbox", "settings")
+                listOf(Screen.Home, Screen.Calendar, Screen.Classrooms, Screen.Data, Screen.Announcements, Screen.ChatInbox, Screen.Settings)
             role == "LECTURER" ->
-                listOf("home", "calendar", "availability", "announcements", "attendance", "chat_inbox", "materials", "grades", "settings")
+                listOf(Screen.Home, Screen.Availability, Screen.Announcements, Screen.CourseContent, Screen.ChatInbox, Screen.Settings)
             role == "STUDENT" ->
-                listOf("student_home", "announcements", "attendance", "chat_inbox", "materials", "grades", "settings")
+                listOf(Screen.StudentHome, Screen.Announcements, Screen.CourseContent, Screen.ChatInbox, Screen.Settings)
             else ->
-                listOf("home", "calendar", "announcements", "attendance", "chat_inbox", "settings")
+                listOf(Screen.Home, Screen.Announcements, Screen.ChatInbox, Screen.Settings)
         }
     }
 
     // Bottom bar'ın gösterileceği rotalar
-    val bottomBarRoutes = setOf(
-        "home", "calendar", "classrooms", "data", "settings",
-        "availability", "users", "superadmin", "student_home", "announcements", "attendance",
-        "chat_inbox", "materials", "grades"
-    )
+    val bottomBarRouteClasses = remember {
+        setOf(
+            Screen.Home::class, Screen.Calendar::class, Screen.Classrooms::class, Screen.Data::class, Screen.Settings::class,
+            Screen.Availability::class, Screen.Users::class, Screen.SuperAdmin::class, Screen.StudentHome::class, Screen.Announcements::class, Screen.Attendance::class,
+            Screen.ChatInbox::class, Screen.Materials::class, Screen.Grades::class, Screen.CourseDetail::class, Screen.CourseContent::class
+        )
+    }
 
     Scaffold(
         bottomBar = {
-            if (currentRoute in bottomBarRoutes) {
+            val showBottomBar = currentDestination?.let { dest ->
+                bottomBarRouteClasses.any { dest.hasRoute(it) }
+            } ?: false
+
+            if (showBottomBar) {
                 NavigationBar {
                     bottomNavItems.forEach { screen ->
                         NavigationBarItem(
                             icon = {
                                 when (screen) {
-                                    "home"       -> Icon(Icons.Default.Home, contentDescription = "Ana Sayfa")
-                                    "calendar"   -> Icon(Icons.Default.DateRange, contentDescription = "Takvim")
-                                    "classrooms" -> Icon(Icons.Default.MeetingRoom, contentDescription = "Sınıflar")
-                                    "data"       -> Icon(Icons.Default.Group, contentDescription = "Hocalar")
-                                    "settings"   -> Icon(Icons.Default.Settings, contentDescription = "Ayarlar")
-                                    "availability" -> Icon(Icons.Default.Schedule, contentDescription = "Müsaitlik")
-                                    "users"      -> Icon(Icons.Default.People, contentDescription = "Kullanıcılar")
-                                    "superadmin" -> Icon(Icons.Default.SupervisorAccount, contentDescription = "Yönetim")
-                                    "student_home" -> Icon(Icons.Default.School, contentDescription = "Ana Sayfa")
-                                    "announcements" -> Icon(Icons.Default.Notifications, contentDescription = "Duyurular")
-                                    "attendance" -> Icon(Icons.Default.HowToReg, contentDescription = "Yoklama")
-                                    "chat_inbox" -> Icon(Icons.Default.Chat, contentDescription = "Mesajlar")
-                                    "materials"  -> Icon(Icons.Default.Folder, contentDescription = "Materyaller")
-                                    "grades"     -> Icon(Icons.Default.Grade, contentDescription = "Notlar")
-                                    else -> Icon(Icons.Default.Circle, contentDescription = screen)
+                                    is Screen.Home          -> Icon(Icons.Default.Home, contentDescription = null)
+                                    is Screen.Calendar      -> Icon(Icons.Default.DateRange, contentDescription = null)
+                                    is Screen.Classrooms    -> Icon(Icons.Default.MeetingRoom, contentDescription = null)
+                                    is Screen.Data          -> Icon(Icons.Default.Group, contentDescription = null)
+                                    is Screen.Settings      -> Icon(Icons.Default.Settings, contentDescription = null)
+                                    is Screen.Availability  -> Icon(Icons.Default.Schedule, contentDescription = null)
+                                    is Screen.Users         -> Icon(Icons.Default.People, contentDescription = null)
+                                    is Screen.SuperAdmin    -> Icon(Icons.Default.SupervisorAccount, contentDescription = null)
+                                    is Screen.StudentHome   -> Icon(Icons.Default.School, contentDescription = null)
+                                    is Screen.Announcements -> Icon(Icons.Default.Notifications, contentDescription = null)
+                                    is Screen.ChatInbox     -> Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
+                                    is Screen.CourseContent -> Icon(Icons.Default.LibraryBooks, contentDescription = null)
+                                    is Screen.Materials     -> Icon(Icons.Default.Folder, contentDescription = null)
+                                    is Screen.Grades        -> Icon(Icons.Default.Grade, contentDescription = null)
+                                    is Screen.Attendance    -> Icon(Icons.Default.HowToReg, contentDescription = null)
+                                    else -> Icon(Icons.Default.Circle, contentDescription = null)
                                 }
                             },
                             label = {
                                 Text(
                                     when (screen) {
-                                        "home"          -> strings.navHome
-                                        "calendar"      -> strings.navCalendar
-                                        "classrooms"    -> strings.navClassrooms
-                                        "data"          -> strings.navLecturers
-                                        "settings"      -> strings.navSettings
-                                        "availability"  -> strings.navAvailability
-                                        "users"         -> strings.navUsers
-                                        "superadmin"    -> strings.navManagement
-                                        "student_home"  -> strings.navHome
-                                        "announcements" -> strings.navAnnouncements
-                                        "attendance"    -> strings.navAttendance
-                                        "chat_inbox"    -> strings.navMessages
-                                        "materials"     -> strings.navMaterials
-                                        "grades"        -> strings.navGrades
-                                        else -> screen.replaceFirstChar { it.uppercase() }
+                                        is Screen.Home          -> strings.navHome
+                                        is Screen.Calendar      -> strings.navCalendar
+                                        is Screen.Classrooms    -> strings.navClassrooms
+                                        is Screen.Data          -> strings.navLecturers
+                                        is Screen.Settings      -> strings.navSettings
+                                        is Screen.Availability  -> strings.navAvailability
+                                        is Screen.Users         -> strings.navUsers
+                                        is Screen.SuperAdmin    -> strings.navManagement
+                                        is Screen.StudentHome   -> strings.navHome
+                                        is Screen.Announcements -> strings.navAnnouncements
+                                        is Screen.ChatInbox     -> strings.navMessages
+                                        is Screen.CourseContent -> strings.navCourseContent
+                                        is Screen.Materials     -> strings.navMaterials
+                                        is Screen.Grades        -> strings.navGrades
+                                        is Screen.Attendance    -> strings.navAttendance
+                                        else -> ""
                                     }
                                 )
                             },
-                            selected = currentRoute == screen,
+                            selected = currentDestination?.hasRoute(screen::class) == true,
                             onClick = {
-                                if (currentRoute != screen) {
+                                if (currentDestination?.hasRoute(screen::class) == false) {
                                     navController.navigate(screen) {
                                         popUpTo(navController.graph.startDestinationId) { saveState = true }
                                         launchSingleTop = true
@@ -188,153 +225,138 @@ fun AppNavigation(themePreferences: ThemePreferences? = null) {
             startDestination = startDest,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable("onboarding") {
+            composable<Screen.Onboarding> {
                 OnboardingScreen(onNavigateToAuth = {
-                    navController.navigate("auth") {
-                        popUpTo("onboarding") { inclusive = true }
+                    navController.navigate(Screen.Auth) {
+                        popUpTo(Screen.Onboarding) { inclusive = true }
                     }
                 })
             }
 
-            composable("auth") {
+            composable<Screen.Auth> {
                 AuthScreen(onLoginSuccess = { mustChange ->
                     userRole = tokenManager.getRole() ?: ""
-                    RetrofitClient.authToken = tokenManager.getToken()
                     if (mustChange) {
-                        navController.navigate("change_password") {
-                            popUpTo("auth") { inclusive = true }
+                        navController.navigate(Screen.ChangePassword) {
+                            popUpTo(Screen.Auth) { inclusive = true }
                         }
                     } else if (userRole.uppercase() == "STUDENT") {
-                        navController.navigate("student_home") {
+                        navController.navigate(Screen.StudentHome) {
                             popUpTo(0) { inclusive = true }
                         }
                     } else if (userRole.uppercase().contains("SUPER")) {
-                        navController.navigate("superadmin") {
+                        navController.navigate(Screen.SuperAdmin) {
                             popUpTo(0) { inclusive = true }
                         }
                     } else {
-                        navController.navigate("home") {
+                        navController.navigate(Screen.Home) {
                             popUpTo(0) { inclusive = true }
                         }
                     }
                 })
             }
 
-            composable("change_password") {
+            composable<Screen.ChangePassword> {
                 ChangePasswordScreen(
                     onPasswordChanged = {
-                        val dest = if ((tokenManager.getRole() ?: "").uppercase() == "STUDENT") "student_home" else "home"
+                        val dest = if ((tokenManager.getRole() ?: "").uppercase() == "STUDENT") Screen.StudentHome else Screen.Home
                         navController.navigate(dest) {
                             popUpTo(0) { inclusive = true }
                         }
                     },
                     onLogout = {
                         tokenManager.clearAll()
-                        RetrofitClient.authToken = null
                         userRole = ""
-                        navController.navigate("auth") {
+                        navController.navigate(Screen.Auth) {
                             popUpTo(0) { inclusive = true }
                         }
                     }
                 )
             }
 
-            composable("home") {
+            composable<Screen.Home> {
                 HomeScreen(
                     onLogoutClick = {
                         tokenManager.clearAll()
-                        RetrofitClient.authToken = null
                         userRole = ""
-                        navController.navigate("auth") {
+                        navController.navigate(Screen.Auth) {
                             popUpTo(0) { inclusive = true }
                         }
                     },
                     onNavigateToSettings = {
-                        navController.navigate("settings")
+                        navController.navigate(Screen.Settings)
+                    },
+                    onNavigateToCourseDetail = { id, name, code ->
+                        navController.navigate(Screen.CourseDetail(id, name, code))
                     }
                 )
             }
 
-            composable("calendar") {
-                CalendarScreen()
-            }
-
-            composable("classrooms") {
-                ClassroomScreen()
-            }
-
-            composable("data") {
+            composable<Screen.Calendar> { CalendarScreen() }
+            composable<Screen.Classrooms> { ClassroomScreen() }
+            composable<Screen.Data> {
                 DataScreen(
-                    onNavigateToCalendar = {
-                        navController.navigate("calendar")
+                    onNavigateToChat = { partnerId, partnerName ->
+                        navController.navigate(Screen.Chat(partnerId, partnerName))
                     }
                 )
             }
+            composable<Screen.Availability> { AvailabilityScreen() }
+            composable<Screen.Users> { UserManagementScreen() }
+            composable<Screen.SuperAdmin> { SuperAdminScreen() }
 
-            composable("availability") {
-                AvailabilityScreen()
-            }
-
-            composable("users") {
-                UserManagementScreen()
-            }
-
-            composable("superadmin") {
-                SuperAdminScreen()
-            }
-
-            composable("student_home") {
-                StudentHomeScreen()
-            }
-
-            composable("announcements") {
-                AnnouncementsScreen()
-            }
-
-            composable("attendance") {
-                AttendanceScreen()
-            }
-
-            composable("settings") {
-                SettingsScreen(
-                    onProfileSaved = {
-                        userRole = tokenManager.getRole() ?: ""
-                    },
-                    onLogoutClick = {
-                        tokenManager.clearAll()
-                        RetrofitClient.authToken = null
-                        userRole = ""
-                        navController.navigate("auth") {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    },
-                    themePreferences = themePreferences
-                )
-            }
-
-            composable("chat_inbox") {
-                ChatInboxScreen(onOpenChat = { partnerId, partnerName ->
-                    navController.navigate("chat/$partnerId/${java.net.URLEncoder.encode(partnerName, "UTF-8")}")
+            composable<Screen.StudentHome> {
+                StudentHomeScreen(onNavigateToCourseDetail = { id, name, code ->
+                    navController.navigate(Screen.CourseDetail(id, name, code))
                 })
             }
 
-            composable("materials") { CourseMaterialsScreen() }
-            composable("grades")    { GradeBookScreen() }
+            composable<Screen.Announcements> { AnnouncementsScreen() }
+            composable<Screen.Attendance> { AttendanceScreen() }
 
-            composable(
-                "chat/{partnerId}/{partnerName}",
-                arguments = listOf(
-                    androidx.navigation.navArgument("partnerId") { type = androidx.navigation.NavType.IntType },
-                    androidx.navigation.navArgument("partnerName") { type = androidx.navigation.NavType.StringType }
+            composable<Screen.CourseContent> {
+                CourseContentScreen(onNavigateToCourseDetail = { id, name, code ->
+                    navController.navigate(Screen.CourseDetail(id, name, code))
+                })
+            }
+
+            composable<Screen.Settings> {
+                SettingsScreen(
+                    onProfileSaved = { userRole = tokenManager.getRole() ?: "" },
+                    onLogoutClick = {
+                        tokenManager.clearAll()
+                        userRole = ""
+                        navController.navigate(Screen.Auth) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 )
-            ) { backStackEntry ->
-                val partnerId   = backStackEntry.arguments?.getInt("partnerId") ?: 0
-                val partnerName = backStackEntry.arguments?.getString("partnerName")?.let {
-                    java.net.URLDecoder.decode(it, "UTF-8")
-                } ?: ""
+            }
+
+            composable<Screen.CourseDetail> { backStackEntry ->
+                val detail = backStackEntry.toRoute<Screen.CourseDetail>()
+                CourseDetailScreen(
+                    courseId = detail.courseId,
+                    courseName = detail.courseName,
+                    courseCode = detail.courseCode,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable<Screen.ChatInbox> {
+                ChatInboxScreen(onOpenChat = { partnerId, partnerName ->
+                    navController.navigate(Screen.Chat(partnerId, partnerName))
+                })
+            }
+
+            composable<Screen.Materials> { CourseMaterialsScreen() }
+            composable<Screen.Grades>    { GradeBookScreen() }
+
+            composable<Screen.Chat> { backStackEntry ->
+                val chat = backStackEntry.toRoute<Screen.Chat>()
                 ChatScreen(
-                    partnerId   = partnerId,
-                    partnerName = partnerName,
+                    partnerId   = chat.partnerId,
+                    partnerName = chat.partnerName,
                     onBack      = { navController.popBackStack() }
                 )
             }

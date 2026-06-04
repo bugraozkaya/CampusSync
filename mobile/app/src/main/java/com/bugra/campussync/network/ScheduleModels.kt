@@ -68,6 +68,9 @@ data class AnnouncementItem(
     val title: String,
     val body: String,
     val audience: String,
+    val course: Int? = null,
+    val course_name: String? = null,
+    val course_code: String? = null,
     val created_by_name: String,
     val created_at: String,
     val is_active: Boolean,
@@ -127,7 +130,15 @@ data class ChatMessage(
     val receiver_name: String,
     val content: String,
     val created_at: String,
-    val is_read: Boolean
+    val is_read: Boolean,
+    val file: String? = null,
+    val file_url: String? = null,
+    val message_type: String = "TEXT"
+)
+
+data class SendMessageRequest(
+    val receiver_id: Int,
+    val content: String
 )
 
 data class CourseMaterialItem(
@@ -162,4 +173,15 @@ data class GradeItem(
     val graded_by: Int?,
     val notes: String,
     val created_at: String
+)
+
+data class CourseNoteItem(
+    val id: Int,
+    val course: Int,
+    val author: Int,
+    val author_name: String,
+    val title: String,
+    val content: String,
+    val created_at: String,
+    val updated_at: String
 )

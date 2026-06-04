@@ -19,14 +19,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.bugra.campussync.utils.LocalAppStrings
 import com.bugra.campussync.viewmodels.UserManagementViewModel
 
 @Composable
 fun UserManagementScreen() {
     val strings = LocalAppStrings.current
-    val viewModel: UserManagementViewModel = viewModel()
+    val viewModel: UserManagementViewModel = hiltViewModel()
     val state by viewModel.state.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val userList = state.users

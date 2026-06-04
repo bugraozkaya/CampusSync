@@ -1,11 +1,12 @@
 package com.bugra.campussync
 
 import android.app.Application
-import com.bugra.campussync.network.RetrofitClient
+import dagger.hilt.android.HiltAndroidApp
 
+
+@HiltAndroidApp
 class CampusSyncApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        RetrofitClient.init(this)
     }
 }

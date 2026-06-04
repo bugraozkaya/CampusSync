@@ -21,7 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.bugra.campussync.network.ClassroomItem
 import com.bugra.campussync.network.CourseItem
 import com.bugra.campussync.utils.LocalAppStrings
@@ -37,7 +37,7 @@ fun CalendarScreen() {
     val userRole = tokenManager.getRole() ?: ""
     val isAdmin = userRole.uppercase().let { it.contains("ADMIN") || it.contains("SUPER") || it == "STAFF" || it == "IT" }
 
-    val viewModel: CalendarViewModel = viewModel()
+    val viewModel: CalendarViewModel = hiltViewModel()
     val state by viewModel.state.collectAsState()
     val detailedSchedules = state.detailedSchedules
     val isLoading = state.isLoading

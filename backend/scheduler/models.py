@@ -74,6 +74,9 @@ class User(AbstractUser):
     locked_until = models.DateTimeField(null=True, blank=True, verbose_name="Kilitli Kalma Süresi")
     is_approved = models.BooleanField(default=True, verbose_name="Onaylandı")
     fcm_token = models.CharField(max_length=500, blank=True, null=True)
+    assigned_courses = models.ManyToManyField(
+        'Course', blank=True, related_name='assigned_lecturers', verbose_name="Atanmış Dersler"
+    )
 
     def __str__(self):
         name = self.get_full_name()
@@ -220,6 +223,7 @@ class Announcement(models.Model):
     body        = models.TextField()
     audience    = models.CharField(max_length=20, choices=AUDIENCE_CHOICES, default='ALL')
     institution = models.ForeignKey(Institution, on_delete=models.CASCADE, related_name='announcements')
+    course      = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True, blank=True, related_name='announcements')
     created_by  = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='announcements_created')
     created_at  = models.DateTimeField(auto_now_add=True)
     is_active   = models.BooleanField(default=True)
@@ -373,3 +377,19 @@ class Grade(models.Model):
 
     def __str__(self):
         return f"{self.student.username} | {self.course.course_code} | {self.grade_type}: {self.score}"
+
+
+# ── Course Notes ──────────────────────────────────────────────────
+class CourseNote(models.Model):
+    course     = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='notes')
+    author     = models.ForeignKey(User, on_delete=models.CASCADE, related_name='course_notes')
+    title      = models.CharField(max_length=200)
+    content    = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.course.course_code} – {self.title}"
